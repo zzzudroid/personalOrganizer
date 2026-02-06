@@ -94,7 +94,7 @@ export default function Home() {
             <h2 className="text-lg font-medium text-gray-800">Мои задачи</h2>
           </div>
           <div className="flex-1 overflow-auto p-4">
-            <TaskList onTasksChange={handleTasksChange} />
+            <TaskList key={refreshKey} onTasksChange={handleTasksChange} />
           </div>
         </aside>
       </div>
