@@ -107,6 +107,26 @@ PORT=3001 npm run dev
 
 ---
 
+## Деплой на Vercel
+
+Проект настроен для деплоя на Vercel:
+
+1. Зайдите на [vercel.com](https://vercel.com)
+2. Нажмите **"Add New Project"**
+3. Выберите репозиторий `personalOrganizer`
+4. Нажмите **"Deploy"**
+
+Vercel автоматически:
+- Установит зависимости
+- Выполнит сборку (`npm run build`)
+- Развернёт проект
+
+### После деплоя:
+- Сайт доступен по URL вида `https://personal-organizer-xxx.vercel.app`
+- При каждом push в main проект автоматически пересобирается
+
+---
+
 ## Проверка работоспособности
 
 После запуска откройте в браузере:
@@ -126,6 +146,9 @@ personalOrganizer/
 │   │   ├── page.tsx      # Главная страница
 │   │   └── layout.tsx    # Корневой layout
 │   └── components/       # React компоненты
+├── README.md             # Описание проекта
+├── AGENTS.md             # Инструкции для AI
+├── RUN.md                # Этот файл
 └── package.json
 ```
 
@@ -138,10 +161,6 @@ personalOrganizer/
 - ❌ Не синхронизируется между устройствами
 - ❌ Теряются при очистке куки/кэша
 
-### План перехода на Vercel Postgres
-
-См. [AGENTS.md](./AGENTS.md) раздел "Migration to Vercel Postgres"
-
 ### Горячая перезагрузка
 
 В режиме `npm run dev` изменения в коде автоматически перезагружают страницу.
@@ -149,3 +168,20 @@ personalOrganizer/
 ### Отладка
 
 Используйте `console.log()` в коде - вывод виден в терминале где запущен `npm run dev`.
+
+---
+
+## Текущий стек (актуально)
+
+- **Next.js:** 14.2.29
+- **React:** 18.3.1
+- **TypeScript:** 5.7.3
+- **Tailwind CSS:** 4.0.3
+- **date-fns:** 4.1.0
+- **lucide-react:** 0.474.0
+
+---
+
+## План развития
+
+См. [README.md](./README.md) раздел "Дальнейшее развитие"

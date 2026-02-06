@@ -19,10 +19,11 @@ npm test -- --watch  # Watch mode
 
 ## Technology Stack
 
-- Next.js 15 (App Router), React 19, TypeScript 5.7 (strict)
+- Next.js 14 (App Router), React 18, TypeScript 5.7 (strict)
 - Tailwind CSS 4
 - date-fns, lucide-react
-- **Data Storage:** localStorage (планируется переход на Vercel Postgres)
+- **Data Storage:** localStorage
+- **Hosting:** Vercel
 
 ## Code Style
 
@@ -99,8 +100,7 @@ src/
 ├── app/
 │   ├── page.tsx       # Main page
 │   └── layout.tsx     # Root layout
-├── components/        # React components
-└── types/             # Shared types (if needed)
+└── components/        # React components
 ```
 
 ## Data Storage (localStorage)
@@ -146,15 +146,18 @@ className={`
 - Format: `feat:`, `fix:`, `refactor:`, `docs:`
 - One logical change per commit
 
-## Migration to Vercel Postgres (План)
+## Deployment (Vercel)
 
-### Шаги миграции:
-1. Подключить Vercel Postgres в панели Vercel
-2. Добавить `@vercel/postgres` и `prisma`
-3. Создать API routes в `src/app/api/`
-4. Мигрировать данные из localStorage
-5. Обновить компоненты на использование API
+1. Подключить GitHub репозиторий на [vercel.com](https://vercel.com)
+2. Нажать **Deploy**
+3. Vercel автоматически соберёт и развернёт проект
+
+### Важно при деплое:
+- Next.js 14.x (не 15.x - заблокирован на Vercel из-за CVE)
+- React 18.x (не 19.x)
+- Без .env файла (localStorage не требует переменных окружения)
 
 ## Important Notes
 - Use `"use client"` for components with hooks/browser APIs
-- Restart dev server after changing `next.config.js` or `.env`
+- Restart dev server after changing `next.config.js`
+- Проект развёрнут на Vercel и работает на localStorage
