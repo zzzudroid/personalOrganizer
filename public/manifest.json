@@ -1,0 +1,18 @@
+{
+  "name": "Personal Organizer",
+  "short_name": "Organizer",
+  "description": "Персональный органайзер с календарем и управлением задачами",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
