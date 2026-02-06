@@ -6,15 +6,7 @@
 # 1. Установка зависимостей
 npm install
 
-# 2. Создание .env файла (если отсутствует)
-echo 'DATABASE_URL="file:./dev.db"' > .env
-echo 'NEXT_PUBLIC_APP_URL="http://localhost:3000"' >> .env
-
-# 3. Инициализация базы данных
-npx prisma migrate dev --name init
-npx prisma generate
-
-# 4. Запуск dev сервера
+# 2. Запуск dev сервера
 npm run dev
 ```
 
@@ -50,32 +42,7 @@ cd personalOrganizer
 npm install
 ```
 
-### 3. Настройка окружения
-
-Создайте файл `.env` в корне проекта:
-
-```env
-# Database
-DATABASE_URL="file:./dev.db"
-
-# Next.js
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-```
-
-### 4. Инициализация базы данных
-
-```bash
-# Создание миграций и применение
-npx prisma migrate dev --name init
-
-# Генерация Prisma клиента
-npx prisma generate
-
-# (Опционально) Заполнение тестовыми данными
-npx ts-node prisma/seed.ts
-```
-
-### 5. Запуск сервера
+### 3. Запуск сервера
 
 **Режим разработки:**
 ```bash
@@ -123,25 +90,10 @@ npm run start
 | `npm run build` | Сборка production |
 | `npm run start` | Запуск production сервера |
 | `npm run lint` | Проверка кода ESLint |
-| `npm run db:migrate` | Применение миграций БД |
-| `npm run db:generate` | Генерация Prisma клиента |
-| `npm run db:studio` | GUI для базы данных (Prisma Studio) |
 
 ---
 
 ## Troubleshooting
-
-### Ошибка: "Cannot find module '@prisma/client'"
-
-```bash
-npx prisma generate
-```
-
-### Ошибка: "Database does not exist"
-
-```bash
-npx prisma migrate dev --name init
-```
 
 ### Ошибка: "Port 3000 is already in use"
 
@@ -153,65 +105,13 @@ npx kill-port 3000
 PORT=3001 npm run dev
 ```
 
-### Ошибка: "env(s) not found"
-
-Убедитесь, что файл `.env` существует и содержит:
-```env
-DATABASE_URL="file:./dev.db"
-```
-
-### Prisma Studio не открывается
-
-```bash
-npx prisma studio --port 5555
-```
-
----
-
-## Работа с базой данных
-
-### Просмотр данных
-
-```bash
-npm run db:studio
-```
-
-Откроется интерфейс на `http://localhost:5555`
-
-### Сброс базы данных
-
-```bash
-# Удалить файл базы данных
-rm prisma/dev.db
-
-# Пересоздать миграции
-npx prisma migrate dev --name init
-```
-
-### Создание новой миграции
-
-```bash
-npx prisma migrate dev --name <название_изменения>
-```
-
----
-
-## Переменные окружения
-
-| Переменная | Описание | Значение по умолчанию |
-|------------|----------|----------------------|
-| `DATABASE_URL` | Путь к SQLite БД | `file:./dev.db` |
-| `NEXT_PUBLIC_APP_URL` | URL приложения | `http://localhost:3000` |
-| `PORT` | Порт сервера | `3000` |
-
 ---
 
 ## Проверка работоспособности
 
 После запуска откройте в браузере:
 
-1. **http://localhost:3000** - главная страница
-2. **http://localhost:3000/api/tasks** - API endpoint (должен вернуть JSON)
+**http://localhost:3000** - главная страница
 
 ---
 
@@ -223,16 +123,24 @@ npx prisma migrate dev --name <название_изменения>
 personalOrganizer/
 ├── src/
 │   ├── app/              # Next.js App Router
-│   │   ├── api/          # API routes
 │   │   ├── page.tsx      # Главная страница
 │   │   └── layout.tsx    # Корневой layout
-│   ├── components/       # React компоненты
-│   └── lib/              # Утилиты
-├── prisma/
-│   ├── schema.prisma     # Схема БД
-│   └── seed.ts           # Тестовые данные
-└── .env                  # Переменные окружения
+│   └── components/       # React компоненты
+└── package.json
 ```
+
+### Хранение данных
+
+Данные сохраняются в **localStorage** браузера под ключом `"personal-organizer-tasks"`.
+
+- ✅ Быстро и просто
+- ✅ Работает офлайн
+- ❌ Не синхронизируется между устройствами
+- ❌ Теряются при очистке куки/кэша
+
+### План перехода на Vercel Postgres
+
+См. [AGENTS.md](./AGENTS.md) раздел "Migration to Vercel Postgres"
 
 ### Горячая перезагрузка
 

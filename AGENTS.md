@@ -11,12 +11,6 @@ npm run build        # Production build
 npm run start        # Start production server
 npm run lint         # Run ESLint
 
-# Database (Prisma + SQLite)
-npm run db:migrate   # Run migrations (interactive)
-npm run db:generate  # Generate Prisma client
-npm run db:studio    # Open Prisma Studio GUI
-npx ts-node prisma/seed.ts  # Seed database
-
 # Testing (Jest + React Testing Library - to be added)
 npm test             # Run all tests
 npm test -- --testNamePattern="TaskList"  # Single test
@@ -26,8 +20,9 @@ npm test -- --watch  # Watch mode
 ## Technology Stack
 
 - Next.js 15 (App Router), React 19, TypeScript 5.7 (strict)
-- Tailwind CSS 4, Prisma ORM + SQLite
+- Tailwind CSS 4
 - date-fns, lucide-react
+- **Data Storage:** localStorage (планируется переход на Vercel Postgres)
 
 ## Code Style
 
@@ -40,14 +35,12 @@ npm test -- --watch  # Watch mode
 ```typescript
 // 1. React/Next
 import { useState } from "react";
-import { NextResponse } from "next/server";
 
 // 2. Third-party
 import { format } from "date-fns";
 import { Circle } from "lucide-react";
 
 // 3. Internal (@/ alias)
-import { prisma } from "@/lib/db";
 import Calendar from "@/components/Calendar";
 
 // 4. CSS last
@@ -65,8 +58,6 @@ import "./globals.css";
 | Functions/Vars | camelCase | `fetchTasks`, `isLoading` |
 | Constants | UPPER_SNAKE_CASE | `STORAGE_KEY` |
 | Types/Interfaces | PascalCase | `Task`, `Category` |
-| API Routes | kebab-case folders | `api/tasks/[id]/route.ts` |
-| Database | snake_case + @@map | `@@map("tasks")` |
 
 ### Components
 ```typescript
@@ -83,32 +74,10 @@ export default function ComponentName({ title, onAction }: Props) {
 }
 ```
 
-### API Routes
-```typescript
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-
-export async function GET() {
-  try {
-    const data = await prisma.model.findMany();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error("Error:", error);
-    return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
-  }
-}
-```
-
 ### Error Handling
 - Wrap async operations in try-catch
-- Use proper HTTP status codes (200, 201, 400, 404, 500)
-- Log errors for debugging; user messages in Russian
-
-### Database (Prisma)
-- UUID IDs: `@id @default(uuid())`
-- Always include `createdAt`, `updatedAt`
-- Use `@@map` for snake_case table names
-- Explicit foreign keys for relations
+- Log errors for debugging
+- User messages in Russian
 
 ### Styling (Tailwind)
 - Semantic colors: `bg-gray-50`, `text-red-600`
@@ -128,25 +97,31 @@ export async function GET() {
 ```
 src/
 ├── app/
-│   ├── api/              # API routes
-│   │   └── [entity]/
-│   │       ├── route.ts
-│   │       └── [id]/route.ts
-│   ├── page.tsx
-│   └── layout.tsx
-├── components/           # React components
-├── lib/                  # Utilities (db.ts, etc.)
-└── types/                # Shared types
+│   ├── page.tsx       # Main page
+│   └── layout.tsx     # Root layout
+├── components/        # React components
+└── types/             # Shared types (if needed)
+```
+
+## Data Storage (localStorage)
+
+```typescript
+const STORAGE_KEY = "personal-organizer-tasks";
+
+// Save
+localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+
+// Load
+const stored = localStorage.getItem(STORAGE_KEY);
+const tasks = stored ? JSON.parse(stored) : [];
 ```
 
 ## Drag & Drop (HTML5 API)
 
 ```typescript
-// State
 const [draggedItem, setDraggedItem] = useState<Item | null>(null);
 const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-// Handlers
 const handleDragStart = (e: React.DragEvent, item: Item) => {
   setDraggedItem(item);
   e.dataTransfer.setData("taskId", item.id);
@@ -156,10 +131,9 @@ const handleDragStart = (e: React.DragEvent, item: Item) => {
 const handleDrop = (e: React.DragEvent, dropIndex: number) => {
   e.preventDefault();
   const taskId = e.dataTransfer.getData("taskId");
-  // Reorder logic + API call
+  // Reorder logic
 };
 
-// Visual feedback
 className={`
   ${isDragged ? "opacity-50 rotate-2 scale-95" : ""}
   ${isDragOver ? "border-blue-500 bg-blue-50" : ""}
@@ -172,8 +146,15 @@ className={`
 - Format: `feat:`, `fix:`, `refactor:`, `docs:`
 - One logical change per commit
 
+## Migration to Vercel Postgres (План)
+
+### Шаги миграции:
+1. Подключить Vercel Postgres в панели Vercel
+2. Добавить `@vercel/postgres` и `prisma`
+3. Создать API routes в `src/app/api/`
+4. Мигрировать данные из localStorage
+5. Обновить компоненты на использование API
+
 ## Important Notes
 - Use `"use client"` for components with hooks/browser APIs
-- Database URL: `DATABASE_URL="file:./dev.db"` in `.env`
 - Restart dev server after changing `next.config.js` or `.env`
-- Run `npx prisma generate` after schema changes
