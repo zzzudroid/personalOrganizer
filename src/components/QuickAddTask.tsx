@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -17,29 +17,9 @@ interface Category {
   color: string;
 }
 
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  status: "todo" | "in_progress" | "done";
-  priority: "low" | "medium" | "high";
-  order: number;
-  dueDate?: string;
-  categoryId?: string;
-  category?: Category;
-}
-
-const CATEGORIES: Category[] = [
-  { id: "1", name: "Работа", color: "#3b82f6" },
-  { id: "2", name: "Личное", color: "#10b981" },
-  { id: "3", name: "Учеба", color: "#f59e0b" },
-  { id: "4", name: "Здоровье", color: "#ef4444" },
-];
-
-const STORAGE_KEY = "personal-organizer-tasks";
-
 export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddTaskProps) {
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -47,44 +27,48 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
     categoryId: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      const response = await fetch("/api/categories");
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error("Ошибка при загрузке категорий:", error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const tasks: Task[] = stored ? JSON.parse(stored) : [];
-      
-      // Создаем задачу с выбранной датой
-      const newTask: Task = {
-        id: Date.now().toString(),
-        title: formData.title,
-        description: formData.description || undefined,
-        priority: formData.priority as "low" | "medium" | "high",
-        status: "todo",
-        order: tasks.length,
-        dueDate: format(date, "yyyy-MM-dd"),
-        categoryId: formData.categoryId || undefined,
-      };
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description || undefined,
+          priority: formData.priority,
+          status: "todo",
+          sortOrder: 0,
+          dueDate: format(date, "yyyy-MM-dd"),
+          categoryId: formData.categoryId || undefined,
+        }),
+      });
 
-      // Добавляем категорию
-      if (formData.categoryId) {
-        const category = CATEGORIES.find((c) => c.id === formData.categoryId);
-        if (category) {
-          newTask.category = category;
-        }
+      if (response.ok) {
+        onTaskCreated();
+      } else {
+        throw new Error("Failed to create task");
       }
-
-      // Сохраняем
-      const updatedTasks = [...tasks, newTask];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
-
-      // Триггерим событие для обновления других компонентов
-      window.dispatchEvent(new Event("storage"));
-
-      onTaskCreated();
     } catch (err) {
-      console.error("Failed to create task", err);
+      console.error("Ошибка при создании задачи:", err);
       alert("Ошибка при создании задачи");
     } finally {
       setLoading(false);
@@ -164,7 +148,7 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Без категории</option>
-                {CATEGORIES.map((category) => (
+                {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>

@@ -9,30 +9,10 @@ interface Category {
   color: string;
 }
 
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  status: "todo" | "in_progress" | "done";
-  priority: "low" | "medium" | "high";
-  order: number;
-  dueDate?: string;
-  categoryId?: string;
-  tags?: string[];
-}
-
-const CATEGORIES: Category[] = [
-  { id: "1", name: "Работа", color: "#3b82f6" },
-  { id: "2", name: "Личное", color: "#10b981" },
-  { id: "3", name: "Учеба", color: "#f59e0b" },
-  { id: "4", name: "Здоровье", color: "#ef4444" },
-];
-
-const STORAGE_KEY = "personal-organizer-tasks";
-
 export default function CreateTaskButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -41,53 +21,58 @@ export default function CreateTaskButton() {
     categoryId: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (isOpen) {
+      loadCategories();
+    }
+  }, [isOpen]);
+
+  const loadCategories = async () => {
+    try {
+      const response = await fetch("/api/categories");
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error("Ошибка при загрузке категорий:", error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Get existing tasks
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const tasks: Task[] = stored ? JSON.parse(stored) : [];
-      
-      // Create new task
-      const newTask: Task = {
-        id: Date.now().toString(),
-        title: formData.title,
-        description: formData.description || undefined,
-        priority: formData.priority as "low" | "medium" | "high",
-        status: "todo",
-        order: tasks.length,
-        dueDate: formData.dueDate || undefined,
-        categoryId: formData.categoryId || undefined,
-      };
-
-      // Add category info if selected
-      if (formData.categoryId) {
-        const category = CATEGORIES.find((c) => c.id === formData.categoryId);
-        if (category) {
-          (newTask as any).category = category;
-        }
-      }
-
-      // Save to localStorage
-      const updatedTasks = [...tasks, newTask];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
-
-      // Close modal and reset
-      setIsOpen(false);
-      setFormData({
-        title: "",
-        description: "",
-        priority: "medium",
-        dueDate: "",
-        categoryId: "",
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description || undefined,
+          priority: formData.priority,
+          status: "todo",
+          sortOrder: 0,
+          dueDate: formData.dueDate || undefined,
+          categoryId: formData.categoryId || undefined,
+        }),
       });
 
-      // Refresh page to show new task
-      window.location.reload();
+      if (response.ok) {
+        setIsOpen(false);
+        setFormData({
+          title: "",
+          description: "",
+          priority: "medium",
+          dueDate: "",
+          categoryId: "",
+        });
+        window.location.reload();
+      } else {
+        throw new Error("Failed to create task");
+      }
     } catch (err) {
-      console.error("Failed to create task", err);
+      console.error("Ошибка при создании задачи:", err);
       alert("Ошибка при создании задачи");
     } finally {
       setLoading(false);
@@ -171,7 +156,7 @@ export default function CreateTaskButton() {
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Без категории</option>
-                  {CATEGORIES.map((category) => (
+                  {categories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
                     </option>

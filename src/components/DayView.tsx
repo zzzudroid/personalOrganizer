@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronLeft, Plus, X, Clock, Calendar as CalendarIcon, GripVertical, Pencil } from "lucide-react";
+import { ChevronLeft, Plus, X, Calendar as CalendarIcon, GripVertical, Pencil } from "lucide-react";
 import { format, isSameDay, isToday } from "date-fns";
 import { ru } from "date-fns/locale";
 
@@ -11,13 +11,19 @@ interface Task {
   description?: string;
   status: string;
   priority: string;
-  order: number;
+  sortOrder: number;
   dueDate?: string;
   category?: {
     id: string;
     name: string;
     color: string;
   };
+}
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
 }
 
 interface DayViewProps {
@@ -38,17 +44,9 @@ const priorityLabels: Record<string, string> = {
   high: "Высокий",
 };
 
-const CATEGORIES = [
-  { id: "1", name: "Работа", color: "#3b82f6" },
-  { id: "2", name: "Личное", color: "#10b981" },
-  { id: "3", name: "Учеба", color: "#f59e0b" },
-  { id: "4", name: "Здоровье", color: "#ef4444" },
-];
-
-const STORAGE_KEY = "personal-organizer-tasks";
-
 export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -62,79 +60,67 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
 
   useEffect(() => {
     loadTasks();
-    // Слушаем изменения в localStorage
-    const handleStorageChange = () => loadTasks();
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    loadCategories();
   }, [date]);
 
-  const loadTasks = () => {
+  const loadTasks = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const allTasks: Task[] = JSON.parse(stored);
-        const dayTasks = allTasks.filter((task) => {
+      const response = await fetch("/api/tasks");
+      if (response.ok) {
+        const allTasks = await response.json();
+        const dayTasks = allTasks.filter((task: Task) => {
           if (!task.dueDate) return false;
           const taskDate = new Date(task.dueDate);
           return isSameDay(taskDate, date);
         });
-        setTasks(dayTasks.sort((a, b) => a.order - b.order));
+        setTasks(dayTasks.sort((a: Task, b: Task) => a.sortOrder - b.sortOrder));
       }
     } catch (err) {
-      console.error("Failed to load tasks");
+      console.error("Ошибка при загрузке задач:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const saveAllTasks = (updatedDayTasks: Task[]) => {
+  const loadCategories = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const allTasks: Task[] = JSON.parse(stored);
-        const otherTasks = allTasks.filter((task) => {
-          if (!task.dueDate) return true;
-          const taskDate = new Date(task.dueDate);
-          return !isSameDay(taskDate, date);
-        });
-        const newAllTasks = [...otherTasks, ...updatedDayTasks];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newAllTasks));
+      const response = await fetch("/api/categories");
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
       }
-    } catch (err) {
-      console.error("Failed to save tasks");
+    } catch (error) {
+      console.error("Ошибка при загрузке категорий:", error);
     }
   };
 
-  const toggleTaskStatus = (taskId: string) => {
+  const toggleTaskStatus = async (taskId: string, currentStatus: string) => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const allTasks: Task[] = JSON.parse(stored);
-        const updatedTasks = allTasks.map((t) =>
-          t.id === taskId
-            ? { ...t, status: t.status === "done" ? "todo" : "done" }
-            : t
-        );
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
+      const newStatus = currentStatus === "done" ? "todo" : "done";
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (response.ok) {
         loadTasks();
       }
     } catch (err) {
-      console.error("Failed to update task");
+      console.error("Ошибка при обновлении статуса:", err);
     }
   };
 
-  const deleteTask = (taskId: string) => {
+  const deleteTask = async (taskId: string) => {
     if (!confirm("Удалить задачу?")) return;
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const allTasks: Task[] = JSON.parse(stored);
-        const updatedTasks = allTasks.filter((t) => t.id !== taskId);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
         loadTasks();
       }
     } catch (err) {
-      console.error("Failed to delete task");
+      console.error("Ошибка при удалении задачи:", err);
     }
   };
 
@@ -158,42 +144,36 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
     });
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTask) return;
 
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const allTasks: Task[] = JSON.parse(stored);
-        const category = CATEGORIES.find((c) => c.id === editForm.categoryId);
-        
-        const updatedTasks = allTasks.map((t) => {
-          if (t.id === editingTask.id) {
-            return {
-              ...t,
-              title: editForm.title,
-              description: editForm.description || undefined,
-              priority: editForm.priority,
-              category: category
-                ? { id: category.id, name: category.name, color: category.color }
-                : undefined,
-            };
-          }
-          return t;
-        });
+      const updates: any = {
+        title: editForm.title,
+        description: editForm.description || undefined,
+        priority: editForm.priority,
+      };
+      if (editForm.categoryId) {
+        updates.categoryId = editForm.categoryId;
+      }
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTasks));
+      const response = await fetch(`/api/tasks/${editingTask.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+
+      if (response.ok) {
         loadTasks();
         closeEditModal();
       }
     } catch (err) {
-      console.error("Failed to edit task");
+      console.error("Ошибка при редактировании задачи:", err);
     }
   };
 
-  // Drag & Drop handlers
-  const handleDragStart = (e: React.DragEvent, task: Task, index: number) => {
+  const handleDragStart = (e: React.DragEvent, task: Task) => {
     setDraggedTask(task);
     e.dataTransfer.effectAllowed = "move";
   };
@@ -208,7 +188,7 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
     setDragOverIndex(null);
   };
 
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
     setDragOverIndex(null);
 
@@ -221,10 +201,23 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
     const [removed] = newTasks.splice(dragIndex, 1);
     newTasks.splice(dropIndex, 0, removed);
 
-    // Update order
-    const reordered = newTasks.map((t, i) => ({ ...t, order: i }));
+    const reordered = newTasks.map((t, i) => ({ ...t, sortOrder: i }));
     setTasks(reordered);
-    saveAllTasks(reordered);
+
+    try {
+      await Promise.all(
+        reordered.map((task, index) =>
+          fetch(`/api/tasks/${task.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sortOrder: index }),
+          })
+        )
+      );
+    } catch (error) {
+      console.error("Ошибка при сохранении порядка:", error);
+    }
+
     setDraggedTask(null);
   };
 
@@ -305,7 +298,7 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
                   <div
                     key={task.id}
                     draggable
-                    onDragStart={(e) => handleDragStart(e, task, index)}
+                    onDragStart={(e) => handleDragStart(e, task)}
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, index)}
@@ -321,7 +314,7 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
                       <GripVertical className="w-5 h-5 text-gray-400 cursor-grab active:cursor-grabbing mt-0.5" />
                       
                       <button
-                        onClick={() => toggleTaskStatus(task.id)}
+                        onClick={() => toggleTaskStatus(task.id, task.status)}
                         className={`
                           mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0
                           ${task.status === "done"
@@ -441,7 +434,7 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Без категории</option>
-                  {CATEGORIES.map((category) => (
+                  {categories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
                     </option>
