@@ -7,12 +7,15 @@ import CreateTaskButton from "@/components/CreateTaskButton";
 import DayView from "@/components/DayView";
 import QuickAddTask from "@/components/QuickAddTask";
 import PushNotificationManager from "@/components/PushNotificationManager";
+import PWAInstallGuide from "@/components/PWAInstallGuide";
+import { Download } from "lucide-react";
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddDate, setQuickAddDate] = useState<Date | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showPWAGuide, setShowPWAGuide] = useState(false);
 
   const handleTasksChange = () => {
     setRefreshKey(prev => prev + 1);
@@ -59,6 +62,14 @@ export default function Home() {
           </div>
         </div>
         <div className="flex-1"></div>
+        <button
+          onClick={() => setShowPWAGuide(true)}
+          className="flex items-center gap-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors mr-2"
+          title="Установить приложение"
+        >
+          <Download className="w-4 h-4" />
+          <span className="hidden sm:inline">Установить</span>
+        </button>
         <PushNotificationManager />
         <CreateTaskButton />
       </header>
@@ -105,6 +116,11 @@ export default function Home() {
           onClose={handleCloseQuickAdd}
           onTaskCreated={handleTaskCreated}
         />
+      )}
+
+      {/* PWA Install Guide Modal */}
+      {showPWAGuide && (
+        <PWAInstallGuide onClose={() => setShowPWAGuide(false)} />
       )}
     </main>
   );
