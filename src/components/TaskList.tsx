@@ -116,8 +116,8 @@ export default function TaskList() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks));
   };
 
-  const toggleTaskStatus = (taskId: string, currentStatus: string) => {
-    const newStatus = currentStatus === "done" ? "todo" : "done";
+  const toggleTaskStatus = (taskId: string, currentStatus: Task["status"]) => {
+    const newStatus: Task["status"] = currentStatus === "done" ? "todo" : "done";
     const newTasks = tasks.map((t) =>
       t.id === taskId ? { ...t, status: newStatus } : t
     );
