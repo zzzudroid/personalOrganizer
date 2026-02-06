@@ -12,6 +12,11 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddDate, setQuickAddDate] = useState<Date | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleTasksChange = () => {
+    setRefreshKey(prev => prev + 1);
+  };
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
@@ -69,7 +74,7 @@ export default function Home() {
 
         {/* Calendar - center */}
         <div className="flex-1 overflow-auto">
-          <Calendar onDateSelect={handleDateSelect} />
+          <Calendar key={refreshKey} onDateSelect={handleDateSelect} />
         </div>
 
         {/* Right sidebar - tasks */}
@@ -78,7 +83,7 @@ export default function Home() {
             <h2 className="text-lg font-medium text-gray-800">Мои задачи</h2>
           </div>
           <div className="flex-1 overflow-auto p-4">
-            <TaskList />
+            <TaskList onTasksChange={handleTasksChange} />
           </div>
         </aside>
       </div>
@@ -89,6 +94,7 @@ export default function Home() {
           date={selectedDate}
           onClose={handleCloseDayView}
           onAddTask={handleAddTask}
+          onTaskChange={handleTasksChange}
         />
       )}
 

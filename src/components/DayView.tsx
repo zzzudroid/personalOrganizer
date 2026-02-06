@@ -38,6 +38,7 @@ interface DayViewProps {
   date: Date;
   onClose: () => void;
   onAddTask?: (date: Date) => void;
+  onTaskChange?: () => void;
 }
 
 const priorityColors: Record<string, string> = {
@@ -52,7 +53,7 @@ const priorityLabels: Record<string, string> = {
   high: "Высокий",
 };
 
-export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
+export default function DayView({ date, onClose, onAddTask, onTaskChange }: DayViewProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,6 +113,7 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
       });
       if (response.ok) {
         loadTasks();
+        onTaskChange?.();
       }
     } catch (err) {
       console.error("Ошибка при обновлении статуса:", err);
@@ -126,6 +128,7 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
       });
       if (response.ok) {
         loadTasks();
+        onTaskChange?.();
       }
     } catch (err) {
       console.error("Ошибка при удалении задачи:", err);
@@ -175,6 +178,7 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
       if (response.ok) {
         loadTasks();
         closeEditModal();
+        onTaskChange?.();
       }
     } catch (err) {
       console.error("Ошибка при редактировании задачи:", err);

@@ -50,7 +50,11 @@ const statusIcons = {
   done: CheckCircle2,
 };
 
-export default function TaskList() {
+interface TaskListProps {
+  onTasksChange?: () => void;
+}
+
+export default function TaskList({ onTasksChange }: TaskListProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +112,7 @@ export default function TaskList() {
         setTasks((prev) =>
           prev.map((t) => (t.id === taskId ? updatedTask : t))
         );
+        onTasksChange?.();
       }
     } catch (error) {
       console.error("Ошибка при обновлении задачи:", error);
@@ -127,6 +132,7 @@ export default function TaskList() {
       });
       if (response.ok) {
         setTasks((prev) => prev.filter((t) => t.id !== taskId));
+        onTasksChange?.();
       }
     } catch (error) {
       console.error("Ошибка при удалении задачи:", error);
