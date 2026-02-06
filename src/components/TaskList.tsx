@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { CheckCircle2, Circle, Clock, AlertCircle, GripVertical, Pencil } from "lucide-react";
+import SubtaskList from "./SubtaskList";
 
 interface Task {
   id: string;
@@ -411,6 +412,10 @@ export default function TaskList() {
                   ))}
                 </select>
               </div>
+              
+              {/* Подзадачи */}
+              {editingTask && <SubtaskList taskId={editingTask.id} />}
+              
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"

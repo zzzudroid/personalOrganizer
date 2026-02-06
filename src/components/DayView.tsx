@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, Plus, X, Calendar as CalendarIcon, GripVertical, Pencil } from "lucide-react";
 import { format, isSameDay, isToday } from "date-fns";
 import { ru } from "date-fns/locale";
+import SubtaskList from "./SubtaskList";
 
 interface Task {
   id: string;
@@ -441,6 +442,10 @@ export default function DayView({ date, onClose, onAddTask }: DayViewProps) {
                   ))}
                 </select>
               </div>
+              
+              {/* Подзадачи */}
+              {editingTask && <SubtaskList taskId={editingTask.id} />}
+              
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
