@@ -6,6 +6,7 @@ import TaskList from "@/components/TaskList";
 import CreateTaskButton from "@/components/CreateTaskButton";
 import DayView from "@/components/DayView";
 import QuickAddTask from "@/components/QuickAddTask";
+import PushNotificationManager from "@/components/PushNotificationManager";
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -53,6 +54,7 @@ export default function Home() {
           </div>
         </div>
         <div className="flex-1"></div>
+        <PushNotificationManager />
         <CreateTaskButton />
       </header>
 
