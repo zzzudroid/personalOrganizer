@@ -5,7 +5,12 @@ export async function GET() {
   try {
     const tasks = await prisma.task.findMany({
       include: {
-        category: true
+        category: true,
+        subtasks: {
+          orderBy: {
+            sortOrder: "asc"
+          }
+        }
       },
       orderBy: {
         sortOrder: "asc"

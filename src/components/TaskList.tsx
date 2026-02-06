@@ -1,8 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle2, Circle, Clock, AlertCircle, GripVertical, Pencil } from "lucide-react";
+import { CheckCircle2, Circle, Clock, AlertCircle, GripVertical, Pencil, CheckSquare } from "lucide-react";
 import SubtaskList from "./SubtaskList";
+
+interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
 
 interface Task {
   id: string;
@@ -17,6 +23,7 @@ interface Task {
     name: string;
     color: string;
   };
+  subtasks?: Subtask[];
 }
 
 interface Category {
@@ -300,6 +307,16 @@ export default function TaskList() {
                         style={{ backgroundColor: task.category.color + "20", color: task.category.color }}
                       >
                         {task.category.name}
+                      </span>
+                    )}
+                    {task.subtasks && task.subtasks.length > 0 && (
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium flex items-center gap-1 ${
+                        task.subtasks.every(s => s.completed) 
+                          ? "bg-green-100 text-green-700" 
+                          : "bg-purple-100 text-purple-700"
+                      }`}>
+                        <CheckSquare className="w-3 h-3" />
+                        {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
                       </span>
                     )}
                     {task.dueDate && (

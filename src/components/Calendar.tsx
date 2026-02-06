@@ -18,6 +18,12 @@ import {
 } from "date-fns";
 import { ru } from "date-fns/locale";
 
+interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 interface Task {
   id: string;
   title: string;
@@ -28,6 +34,7 @@ interface Task {
     name: string;
     color: string;
   };
+  subtasks?: Subtask[];
 }
 
 interface CalendarProps {
@@ -199,11 +206,16 @@ export default function Calendar({ onDateSelect }: CalendarProps) {
                       onDragStart={(e) => handleDragStart(e, task.id)}
                       onDragEnd={handleDragEnd}
                       className={`
-                        text-xs px-2 py-1 rounded truncate cursor-move
+                        text-xs px-2 py-1 rounded truncate cursor-move flex items-center gap-1
                         ${task.status === "done" ? "bg-gray-100 line-through text-gray-400" : "bg-blue-100 text-blue-800"}
                         ${draggedTaskId === task.id ? "opacity-50" : ""}
                       `}
                     >
+                      {task.subtasks && task.subtasks.length > 0 && (
+                        <span className="text-[10px]">
+                          {task.subtasks.filter(s => s.completed).length === task.subtasks.length ? "✓" : "☐"}
+                        </span>
+                      )}
                       {task.title}
                     </div>
                   ))}
