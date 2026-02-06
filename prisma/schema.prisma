@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  status      String   @default("todo")
+  priority    String   @default("medium")
+  order       Int      @default(0)
+  dueDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  category    Category? @relation(fields: [categoryId], references: [id])
+  categoryId  String?
+  tags        Tag[]
+  
+  @@map("tasks")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  color       String   @default("#3b82f6")
+  createdAt   DateTime @default(now())
+  tasks       Task[]
+  
+  @@map("categories")
+}
+
+model Tag {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  color       String   @default("#6b7280")
+  tasks       Task[]
+  
+  @@map("tags")
+}
