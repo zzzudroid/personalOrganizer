@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Menu, Search, Settings, HelpCircle, Move } from "lucide-react";
+import { ChevronLeft, ChevronRight, Move } from "lucide-react";
 import {
   startOfMonth,
   endOfMonth,
@@ -34,9 +34,6 @@ interface CalendarProps {
   onDateSelect?: (date: Date) => void;
 }
 
-const STORAGE_KEY = "personal-organizer-tasks";
-
-// Форматируем дату в YYYY-MM-DD без timezone issues
 const formatDateForStorage = (date: Date): string => {
   return format(date, "yyyy-MM-dd");
 };
@@ -44,33 +41,23 @@ const formatDateForStorage = (date: Date): string => {
 export default function Calendar({ onDateSelect }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<Date | null>(null);
 
   useEffect(() => {
     loadTasks();
-    const handleStorageChange = () => loadTasks();
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
-  const loadTasks = () => {
+  const loadTasks = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setTasks(JSON.parse(stored));
+      const response = await fetch("/api/tasks");
+      if (response.ok) {
+        const data = await response.json();
+        setTasks(data);
       }
     } catch (err) {
-      console.error("Failed to load tasks");
+      console.error("Ошибка при загрузке задач:", err);
     }
-  };
-
-  const saveTasks = (newTasks: Task[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks));
-    setTasks(newTasks);
-    // Триггерим событие для обновления других компонентов
-    window.dispatchEvent(new Event("storage"));
   };
 
   const monthStart = startOfMonth(currentDate);
@@ -84,7 +71,6 @@ export default function Calendar({ onDateSelect }: CalendarProps) {
   const getTasksForDay = (day: Date) => {
     return tasks.filter((task) => {
       if (!task.dueDate) return false;
-      // Сравниваем строки дат напрямую
       return task.dueDate === formatDateForStorage(day);
     });
   };
@@ -98,191 +84,134 @@ export default function Calendar({ onDateSelect }: CalendarProps) {
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     setDragOverDay(null);
   };
 
-  const handleDrop = (e: React.DragEvent, day: Date) => {
+  const handleDrop = async (e: React.DragEvent, day: Date) => {
     e.preventDefault();
     e.stopPropagation();
     setDragOverDay(null);
-
+    
     const taskId = e.dataTransfer.getData("taskId");
-    if (!taskId) {
-      console.log("No taskId in drop data");
-      return;
-    }
+    if (!taskId) return;
 
-    console.log("Dropping task", taskId, "on day", formatDateForStorage(day));
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dueDate: formatDateForStorage(day) }),
+      });
 
-    // Обновляем dueDate задачи
-    const updatedTasks = tasks.map((task) => {
-      if (task.id === taskId) {
-        return {
-          ...task,
-          dueDate: formatDateForStorage(day),
-        };
+      if (response.ok) {
+        loadTasks();
       }
-      return task;
-    });
-
-    saveTasks(updatedTasks);
+    } catch (error) {
+      console.error("Ошибка при перемещении задачи:", error);
+    }
   };
 
-  const handleTaskDragStart = (e: React.DragEvent, taskId: string) => {
-    e.stopPropagation();
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);
     e.dataTransfer.setData("taskId", taskId);
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const handleDayClick = (day: Date) => {
-    // Не открываем day view если был drag
-    if (draggedTaskId) {
-      setDraggedTaskId(null);
-      return;
-    }
-    onDateSelect?.(day);
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDragOverDay(null);
   };
 
-  const handleToday = () => setCurrentDate(new Date());
-  const handlePrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
-  const handleNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
+  const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
+  const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
 
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <header className="flex items-center px-4 py-2 border-b bg-white">
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 hover:bg-gray-100 rounded-full mr-2"
-        >
-          <Menu className="w-5 h-5 text-gray-600" />
-        </button>
-
+      <div className="flex items-center justify-between px-6 py-4 border-b">
         <div className="flex items-center gap-4">
           <button
-            onClick={handleToday}
-            className="px-4 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+            onClick={prevMonth}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            Сегодня
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
           </button>
-
-          <div className="flex items-center">
-            <button
-              onClick={handlePrevMonth}
-              className="p-1 hover:bg-gray-100 rounded-full"
-            >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <button
-              onClick={handleNextMonth}
-              className="p-1 hover:bg-gray-100 rounded-full"
-            >
-              <ChevronRight className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
-
-          <h1 className="text-xl font-normal text-gray-800 capitalize">
+          <h2 className="text-xl font-semibold text-gray-900 min-w-[200px] text-center">
             {format(currentDate, "LLLL yyyy", { locale: ru })}
-          </h1>
-        </div>
-
-        <div className="flex-1"></div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-xs text-gray-500 mr-4">
-            <Move className="w-4 h-4" />
-            <span>Перетаскивайте задачи</span>
-          </div>
-          <button className="p-2 hover:bg-gray-100 rounded-full">
-            <Search className="w-5 h-5 text-gray-600" />
-          </button>
-          <button className="p-2 hover:bg-gray-100 rounded-full">
-            <HelpCircle className="w-5 h-5 text-gray-600" />
-          </button>
-          <button className="p-2 hover:bg-gray-100 rounded-full">
-            <Settings className="w-5 h-5 text-gray-600" />
+          </h2>
+          <button
+            onClick={nextMonth}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-600" />
           </button>
         </div>
-      </header>
+        
+        <div className="flex items-center gap-3 text-sm text-gray-500">
+          <Move className="w-4 h-4" />
+          <span>Перетаскивайте задачи</span>
+        </div>
+      </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 flex flex-col">
-        {/* Week days header */}
-        <div className="grid grid-cols-7 border-b">
-          {weekDays.map((day, index) => (
+      <div className="flex-1 p-6">
+        <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200 rounded-lg overflow-hidden">
+          {/* Weekday Headers */}
+          {weekDays.map((day) => (
             <div
               key={day}
-              className={`py-2 text-center text-sm font-medium text-gray-600 ${
-                index >= 5 ? "text-gray-400" : ""
-              }`}
+              className="bg-gray-50 p-3 text-center text-sm font-medium text-gray-600"
             >
               {day}
             </div>
           ))}
-        </div>
 
-        {/* Days grid */}
-        <div className="flex-1 grid grid-cols-7 grid-rows-5">
-          {days.map((day, index) => {
-            const isCurrentMonth = isSameMonth(day, currentDate);
-            const isTodayDate = isToday(day);
+          {/* Calendar Days */}
+          {days.map((day) => {
             const dayTasks = getTasksForDay(day);
-            const isWeekend = index % 7 >= 5;
             const isDragOver = dragOverDay && isSameDay(dragOverDay, day);
-
+            
             return (
               <div
                 key={day.toISOString()}
-                onClick={() => handleDayClick(day)}
                 onDragOver={(e) => handleDragOver(e, day)}
-                onDragLeave={(e) => handleDragLeave(e)}
+                onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, day)}
+                onClick={() => onDateSelect?.(day)}
                 className={`
-                  min-h-[100px] p-2 border-r border-b cursor-pointer transition-all duration-200
-                  ${isCurrentMonth ? "bg-white" : "bg-gray-50"}
-                  ${isWeekend ? "bg-gray-50/50" : ""}
-                  ${isDragOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : "hover:bg-blue-50/30"}
+                  bg-white min-h-[100px] p-2 cursor-pointer transition-colors
+                  ${!isSameMonth(day, currentDate) ? "bg-gray-50 text-gray-400" : ""}
+                  ${isToday(day) ? "bg-blue-50" : ""}
+                  ${isDragOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : "hover:bg-gray-50"}
                 `}
               >
-                <div className="flex flex-col h-full">
-                  <div
-                    className={`
-                      w-8 h-8 flex items-center justify-center text-sm rounded-full mb-1
-                      ${isTodayDate ? "bg-blue-600 text-white font-medium" : "text-gray-700"}
-                      ${!isCurrentMonth ? "text-gray-400" : ""}
-                    `}
-                  >
-                    {getDate(day)}
-                  </div>
-
-                  {/* Tasks for this day */}
-                  <div className="flex-1 space-y-1 overflow-hidden">
-                    {dayTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        draggable
-                        onDragStart={(e) => handleTaskDragStart(e, task.id)}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                        className="text-xs px-2 py-1 rounded truncate cursor-move hover:opacity-80 transition-opacity select-none"
-                        style={{
-                          backgroundColor: task.category?.color + "20" || "#e3f2fd",
-                          borderLeft: `3px solid ${task.category?.color || "#2196f3"}`,
-                          color: task.category?.color || "#1976d2",
-                        }}
-                      >
-                        {task.title}
-                      </div>
-                    ))}
-                    {dayTasks.length === 0 && isDragOver && (
-                      <div className="text-xs text-blue-500 text-center py-2 border-2 border-dashed border-blue-300 rounded">
-                        Перетащите сюда
-                      </div>
-                    )}
-                  </div>
+                <div className={`
+                  text-sm font-medium mb-1 w-7 h-7 flex items-center justify-center rounded-full
+                  ${isToday(day) ? "bg-blue-600 text-white" : "text-gray-700"}
+                `}>
+                  {getDate(day)}
+                </div>
+                
+                <div className="space-y-1">
+                  {dayTasks.slice(0, 3).map((task) => (
+                    <div
+                      key={task.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, task.id)}
+                      onDragEnd={handleDragEnd}
+                      className={`
+                        text-xs px-2 py-1 rounded truncate cursor-move
+                        ${task.status === "done" ? "bg-gray-100 line-through text-gray-400" : "bg-blue-100 text-blue-800"}
+                        ${draggedTaskId === task.id ? "opacity-50" : ""}
+                      `}
+                    >
+                      {task.title}
+                    </div>
+                  ))}
+                  {dayTasks.length > 3 && (
+                    <div className="text-xs text-gray-500 px-2">
+                      +{dayTasks.length - 3} ещё
+                    </div>
+                  )}
                 </div>
               </div>
             );
