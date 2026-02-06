@@ -9,21 +9,20 @@ interface Task {
   description?: string;
   status: "todo" | "in_progress" | "done";
   priority: "low" | "medium" | "high";
-  order: number;
+  sortOrder: number;
   dueDate?: string;
   category?: {
     id: string;
     name: string;
     color: string;
   };
-  tags?: {
-    id: string;
-    name: string;
-    color: string;
-  }[];
 }
 
-const STORAGE_KEY = "personal-organizer-tasks";
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
 
 const priorityColors = {
   low: "bg-gray-100 text-gray-700",
@@ -43,15 +42,9 @@ const statusIcons = {
   done: CheckCircle2,
 };
 
-const CATEGORIES = [
-  { id: "1", name: "Работа", color: "#3b82f6" },
-  { id: "2", name: "Личное", color: "#10b981" },
-  { id: "3", name: "Учеба", color: "#f59e0b" },
-  { id: "4", name: "Здоровье", color: "#ef4444" },
-];
-
 export default function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -66,68 +59,70 @@ export default function TaskList() {
 
   useEffect(() => {
     loadTasks();
+    loadCategories();
   }, []);
 
-  const loadTasks = () => {
+  const loadTasks = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setTasks(parsed.sort((a: Task, b: Task) => a.order - b.order));
-      } else {
-        const demoTasks: Task[] = [
-          {
-            id: "1",
-            title: "Изучить Drag & Drop",
-            description: "Попробовать перетащить эту задачу",
-            status: "todo",
-            priority: "medium",
-            order: 0,
-            category: { id: "1", name: "Обучение", color: "#3b82f6" },
-          },
-          {
-            id: "2",
-            title: "Создать первую задачу",
-            description: "Нажмите кнопку 'Новая задача' сверху",
-            status: "todo",
-            priority: "high",
-            order: 1,
-          },
-          {
-            id: "3",
-            title: "Организовать свой день",
-            status: "done",
-            priority: "low",
-            order: 2,
-          },
-        ];
-        setTasks(demoTasks);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(demoTasks));
+      const response = await fetch("/api/tasks");
+      if (response.ok) {
+        const data = await response.json();
+        setTasks(data);
       }
-    } catch (err) {
-      console.error("Failed to load tasks");
+    } catch (error) {
+      console.error("Ошибка при загрузке задач:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const saveTasks = (newTasks: Task[]) => {
-    setTasks(newTasks);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks));
+  const loadCategories = async () => {
+    try {
+      const response = await fetch("/api/categories");
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error("Ошибка при загрузке категорий:", error);
+    }
   };
 
-  const toggleTaskStatus = (taskId: string, currentStatus: Task["status"]) => {
+  const updateTask = async (taskId: string, updates: Partial<Task>) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (response.ok) {
+        const updatedTask = await response.json();
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? updatedTask : t))
+        );
+      }
+    } catch (error) {
+      console.error("Ошибка при обновлении задачи:", error);
+    }
+  };
+
+  const toggleTaskStatus = async (taskId: string, currentStatus: Task["status"]) => {
     const newStatus: Task["status"] = currentStatus === "done" ? "todo" : "done";
-    const newTasks = tasks.map((t) =>
-      t.id === taskId ? { ...t, status: newStatus } : t
-    );
-    saveTasks(newTasks);
+    await updateTask(taskId, { status: newStatus });
   };
 
-  const deleteTask = (taskId: string) => {
+  const deleteTask = async (taskId: string) => {
     if (!confirm("Удалить задачу?")) return;
-    const newTasks = tasks.filter((t) => t.id !== taskId);
-    saveTasks(newTasks);
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      }
+    } catch (error) {
+      console.error("Ошибка при удалении задачи:", error);
+    }
   };
 
   const openEditModal = (task: Task) => {
@@ -152,28 +147,21 @@ export default function TaskList() {
     });
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTask) return;
 
-    const updatedTasks = tasks.map((t) => {
-      if (t.id === editingTask.id) {
-        const category = CATEGORIES.find((c) => c.id === editForm.categoryId);
-        return {
-          ...t,
-          title: editForm.title,
-          description: editForm.description || undefined,
-          priority: editForm.priority as "low" | "medium" | "high",
-          dueDate: editForm.dueDate || undefined,
-          category: category
-            ? { id: category.id, name: category.name, color: category.color }
-            : undefined,
-        };
-      }
-      return t;
-    });
+    const updates: any = {
+      title: editForm.title,
+      description: editForm.description || undefined,
+      priority: editForm.priority as "low" | "medium" | "high",
+      dueDate: editForm.dueDate || undefined,
+    };
+    if (editForm.categoryId) {
+      updates.categoryId = editForm.categoryId;
+    }
+    await updateTask(editingTask.id, updates);
 
-    saveTasks(updatedTasks);
     closeEditModal();
   };
 
@@ -193,7 +181,7 @@ export default function TaskList() {
     setDragOverIndex(null);
   };
 
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
     setDragOverIndex(null);
 
@@ -206,8 +194,23 @@ export default function TaskList() {
     const [removed] = newTasks.splice(dragIndex, 1);
     newTasks.splice(dropIndex, 0, removed);
 
-    const reordered = newTasks.map((t, i) => ({ ...t, order: i }));
-    saveTasks(reordered);
+    const reordered = newTasks.map((t, i) => ({ ...t, sortOrder: i }));
+    setTasks(reordered);
+
+    try {
+      await Promise.all(
+        reordered.map((task, index) =>
+          fetch(`/api/tasks/${task.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sortOrder: index }),
+          })
+        )
+      );
+    } catch (error) {
+      console.error("Ошибка при сохранении порядка:", error);
+    }
+
     setDraggedTask(null);
   };
 
@@ -305,19 +308,6 @@ export default function TaskList() {
                       </span>
                     )}
                   </div>
-                  {task.tags && task.tags.length > 0 && (
-                    <div className="flex gap-1 mt-2 flex-wrap">
-                      {task.tags.map((tag) => (
-                        <span
-                          key={tag.id}
-                          className="text-xs px-2 py-0.5 rounded border"
-                          style={{ borderColor: tag.color, color: tag.color }}
-                        >
-                          #{tag.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                   <button
@@ -349,7 +339,6 @@ export default function TaskList() {
         </div>
       )}
 
-      {/* Edit Modal */}
       {editingTask && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
@@ -415,7 +404,7 @@ export default function TaskList() {
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Без категории</option>
-                  {CATEGORIES.map((category) => (
+                  {categories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
                     </option>
