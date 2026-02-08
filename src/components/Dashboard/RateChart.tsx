@@ -51,7 +51,7 @@ export default function RateChart({ data, color, label }: RateChartProps) {
     // Подготавливаем данные
     const labels = data.map(item => {
       const date = new Date(item.date);
-      return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+      return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     });
     const values = data.map(item => item.value);
 
@@ -65,6 +65,11 @@ export default function RateChart({ data, color, label }: RateChartProps) {
         tooltip: {
           mode: 'index',
           intersect: false,
+          backgroundColor: 'rgba(30, 30, 30, 0.9)',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
           callbacks: {
             label: (context) => {
               const value = context.parsed.y;
@@ -78,11 +83,20 @@ export default function RateChart({ data, color, label }: RateChartProps) {
         x: {
           grid: {
             display: false
+          },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.5)',
+            maxTicksLimit: 6,
+            font: { size: 11 }
           }
         },
         y: {
           grid: {
-            color: 'rgba(0, 0, 0, 0.05)'
+            color: 'rgba(255, 255, 255, 0.08)'
+          },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.5)',
+            font: { size: 11 }
           }
         }
       }
@@ -119,7 +133,7 @@ export default function RateChart({ data, color, label }: RateChartProps) {
   }, [data, color, label]);
 
   return (
-    <div className="w-full h-64">
+    <div className="w-full h-52">
       <canvas ref={canvasRef} />
     </div>
   );

@@ -5,31 +5,35 @@ import MiningPanel from '@/components/Dashboard/MiningPanel';
 
 export default function FinancesPage() {
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      {/* Заголовок */}
-      <div className="max-w-7xl mx-auto mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Финансовый Dashboard</h1>
-        <p className="text-gray-600">
-          Отслеживание курсов валют, криптовалюты и статистики майнинга
-        </p>
-      </div>
-
+    <div className="min-h-screen bg-gray-900 p-4 md:p-6">
       {/* Grid панелей */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Курс USD/RUB */}
         <CurrencyPanel
           title="USD/RUB"
+          panelTitle="Доллар США"
           source="Центральный Банк России"
           endpoint="/api/financial/usd-rate"
-          color="#667eea"
+          color="#a78bfa"
+          icon="US"
+          badge="ЦБ РФ"
+          badgeColor="bg-purple-600 text-white"
+          gradient="bg-gradient-to-br from-purple-600 to-indigo-700"
+          unit="руб."
         />
 
         {/* Курс XMR/USDT */}
         <CurrencyPanel
           title="XMR/USDT"
+          panelTitle="Monero"
           source="MEXC Exchange"
           endpoint="/api/financial/xmr-rate"
-          color="#ff6b35"
+          color="#fb923c"
+          icon="⛏"
+          badge="MEXC"
+          badgeColor="bg-orange-500 text-white"
+          gradient="bg-gradient-to-br from-orange-500 to-amber-600"
+          unit="USDT"
         />
 
         {/* Статистика майнинга */}
@@ -37,10 +41,17 @@ export default function FinancesPage() {
 
         {/* Ключевая ставка ЦБ РФ */}
         <CurrencyPanel
-          title="Ключевая ставка ЦБ РФ"
+          title="Ключевая ставка"
+          panelTitle="Ключевая ставка"
           source="Центральный Банк России"
           endpoint="/api/financial/cbr-key-rate"
-          color="#3498db"
+          color="#facc15"
+          icon="🏛"
+          badge="ЦБ РФ"
+          badgeColor="bg-blue-600 text-white"
+          gradient="bg-gradient-to-br from-blue-600 to-blue-800"
+          unit="% годовых"
+          chartTitle="График изменений"
           isKeyRate={true}
         />
       </div>
