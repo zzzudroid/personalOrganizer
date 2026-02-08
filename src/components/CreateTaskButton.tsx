@@ -1,18 +1,41 @@
 "use client";
 
+/**
+ * Компонент CreateTaskButton - кнопка создания новой задачи с модальной формой.
+ *
+ * Основные возможности:
+ * - Кнопка "Новая задача" для вызова модального окна
+ * - Модальная форма создания задачи со всеми полями:
+ *   название (обязательное), описание, дедлайн, приоритет, категория
+ * - Загрузка списка категорий при открытии формы
+ * - Перезагрузка страницы после успешного создания (window.location.reload)
+ *
+ * Используется в шапке главной страницы.
+ * После создания задачи делает полный reload страницы вместо callback-уведомления.
+ */
+
 import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 
+/** Интерфейс категории для выпадающего списка в форме создания */
 interface Category {
   id: string;
   name: string;
   color: string;
 }
 
+/**
+ * Компонент кнопки создания задачи с модальной формой.
+ * Не принимает пропсов - самодостаточный компонент.
+ */
 export default function CreateTaskButton() {
+  // Флаг открытия модального окна
   const [isOpen, setIsOpen] = useState(false);
+  // Флаг отправки формы (блокирует кнопку "Создать" и показывает "Создание...")
   const [loading, setLoading] = useState(false);
+  // Список категорий, загружаемый при открытии формы
   const [categories, setCategories] = useState<Category[]>([]);
+  // Данные формы создания задачи
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -21,12 +44,17 @@ export default function CreateTaskButton() {
     categoryId: "",
   });
 
+  // Загрузка категорий при открытии модального окна
+  // (не при монтировании, а по требованию - для оптимизации)
   useEffect(() => {
     if (isOpen) {
       loadCategories();
     }
   }, [isOpen]);
 
+  /**
+   * Загружает список категорий из API для выпадающего списка.
+   */
   const loadCategories = async () => {
     try {
       const response = await fetch("/api/categories");
@@ -39,6 +67,12 @@ export default function CreateTaskButton() {
     }
   };
 
+  /**
+   * Обработчик отправки формы создания задачи.
+   * Отправляет POST запрос на /api/tasks с данными формы.
+   * При успехе закрывает модальное окно, сбрасывает форму и перезагружает страницу.
+   * Пустые строки конвертируются в undefined для корректного сохранения в БД.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -51,15 +85,17 @@ export default function CreateTaskButton() {
           title: formData.title,
           description: formData.description || undefined,
           priority: formData.priority,
-          status: "todo",
-          sortOrder: 0,
+          status: "todo", // Новые задачи всегда создаются со статусом "todo"
+          sortOrder: 0, // Новая задача попадает в начало списка
           dueDate: formData.dueDate || undefined,
           categoryId: formData.categoryId || undefined,
         }),
       });
 
       if (response.ok) {
+        // Закрываем модальное окно
         setIsOpen(false);
+        // Сбрасываем форму к значениям по умолчанию
         setFormData({
           title: "",
           description: "",
@@ -67,6 +103,7 @@ export default function CreateTaskButton() {
           dueDate: "",
           categoryId: "",
         });
+        // Полная перезагрузка страницы для обновления всех компонентов
         window.location.reload();
       } else {
         throw new Error("Failed to create task");
@@ -81,6 +118,7 @@ export default function CreateTaskButton() {
 
   return (
     <>
+      {/* Кнопка открытия модального окна создания задачи */}
       <button
         onClick={() => setIsOpen(true)}
         className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
@@ -89,11 +127,13 @@ export default function CreateTaskButton() {
         Новая задача
       </button>
 
+      {/* Модальное окно создания задачи (overlay) */}
       {isOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-semibold mb-4">Новая задача</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Поле названия задачи (обязательное) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Название *
@@ -107,6 +147,7 @@ export default function CreateTaskButton() {
                   placeholder="Введите название задачи"
                 />
               </div>
+              {/* Поле описания (опциональное) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Описание
@@ -119,6 +160,7 @@ export default function CreateTaskButton() {
                   placeholder="Описание задачи"
                 />
               </div>
+              {/* Дедлайн и приоритет в одной строке (grid 2 колонки) */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -146,6 +188,7 @@ export default function CreateTaskButton() {
                   </select>
                 </div>
               </div>
+              {/* Выбор категории из выпадающего списка */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Категория
@@ -163,6 +206,7 @@ export default function CreateTaskButton() {
                   ))}
                 </select>
               </div>
+              {/* Кнопки формы: Отмена и Создать */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"

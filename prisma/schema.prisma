@@ -1,60 +1,107 @@
+// =============================================================================
+// Файл схемы Prisma — определение моделей базы данных
+// =============================================================================
+// Описывает структуру PostgreSQL базы данных для Personal Organizer.
+// Prisma ORM генерирует TypeScript-типы и клиент на основе этой схемы.
+//
+// Команды:
+//   npx prisma migrate dev  — создать и применить миграцию
+//   npx prisma generate     — сгенерировать Prisma Client
+//   npx prisma studio       — открыть визуальный редактор БД
+// =============================================================================
+
+// Генератор Prisma Client — создает TypeScript-клиент для работы с БД
 generator client {
   provider = "prisma-client-js"
 }
 
+// Подключение к PostgreSQL (Neon — облачная serverless БД)
+// URL берется из переменной окружения DATABASE_URL в файле .env
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// =============================================================================
+// Модель Task — основная задача
+// =============================================================================
+// Центральная сущность приложения. Каждая задача может иметь:
+// - Опциональную категорию (связь с Category)
+// - Список подзадач (связь 1:N с Subtask)
+// - Дату выполнения (строка формата "yyyy-MM-dd", не DateTime)
+// - Порядок сортировки для drag & drop
 model Task {
-  id          String    @id @default(uuid())
-  title       String
-  description String?
-  status      String    @default("todo")
-  priority    String    @default("medium")
-  sortOrder   Int       @default(0) @map("sort_order")
-  dueDate     String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  id          String    @id @default(uuid())    // UUID идентификатор
+  title       String                             // Заголовок задачи (обязательно)
+  description String?                            // Описание (опционально)
+  status      String    @default("todo")         // Статус: "todo", "in_progress", "done"
+  priority    String    @default("medium")       // Приоритет: "low", "medium", "high"
+  sortOrder   Int       @default(0) @map("sort_order") // Порядок для drag & drop
+  dueDate     String?                            // Дата выполнения в формате "yyyy-MM-dd" (строка, не Date!)
+  createdAt   DateTime  @default(now())          // Дата создания (автоматически)
+  updatedAt   DateTime  @updatedAt               // Дата последнего обновления (автоматически)
+
+  // Связь с категорией (опциональная, many-to-one)
   category    Category? @relation(fields: [categoryId], references: [id])
-  categoryId  String?
+  categoryId  String?                            // Внешний ключ на Category (может быть null)
+
+  // Связь с подзадачами (one-to-many, каскадное удаление настроено в Subtask)
   subtasks    Subtask[]
-  
-  @@map("tasks")
+
+  @@map("tasks") // Имя таблицы в PostgreSQL (snake_case)
 }
 
+// =============================================================================
+// Модель Category — категория задачи
+// =============================================================================
+// Группирует задачи по типу (Работа, Личное, Учеба, Здоровье и т.д.).
+// Каждая категория имеет уникальное имя и цвет для визуального различения в UI.
+// Начальные категории создаются через seed.ts.
 model Category {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  color     String   @default("#3b82f6")
-  createdAt DateTime @default(now())
+  id        String   @id @default(uuid())       // UUID идентификатор
+  name      String   @unique                     // Уникальное название (например, "Работа")
+  color     String   @default("#3b82f6")         // HEX-цвет для отображения (по умолчанию синий)
+  createdAt DateTime @default(now())             // Дата создания
+
+  // Связь с задачами (one-to-many) — все задачи данной категории
   tasks     Task[]
-  
-  @@map("categories")
+
+  @@map("categories") // Имя таблицы в PostgreSQL
 }
 
+// =============================================================================
+// Модель Subtask — подзадача (элемент чеклиста)
+// =============================================================================
+// Представляет элемент чеклиста внутри задачи.
+// При удалении родительской задачи все подзадачи удаляются каскадно (onDelete: Cascade).
 model Subtask {
-  id        String   @id @default(uuid())
-  title     String
-  completed Boolean  @default(false)
-  sortOrder Int      @default(0) @map("sort_order")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
+  id        String   @id @default(uuid())       // UUID идентификатор
+  title     String                               // Текст подзадачи
+  completed Boolean  @default(false)             // Статус выполнения (чекбокс)
+  sortOrder Int      @default(0) @map("sort_order") // Порядок в чеклисте для drag & drop
+  createdAt DateTime @default(now())             // Дата создания
+  updatedAt DateTime @updatedAt                  // Дата последнего обновления
+
+  // Связь с родительской задачей (many-to-one)
+  // onDelete: Cascade — при удалении задачи все подзадачи удаляются автоматически
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  taskId    String   @map("task_id")
-  
-  @@map("subtasks")
+  taskId    String   @map("task_id")             // Внешний ключ на Task
+
+  @@map("subtasks") // Имя таблицы в PostgreSQL
 }
 
+// =============================================================================
+// Модель PushSubscription — подписка на push-уведомления
+// =============================================================================
+// Хранит данные Web Push подписки для отправки уведомлений пользователю.
+// Endpoint уникален для каждого браузера/устройства.
+// Ключи шифрования (p256dh, auth) используются для шифрования payload уведомления.
 model PushSubscription {
-  id        String   @id @default(uuid())
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now())
-  
-  @@map("push_subscriptions")
+  id        String   @id @default(uuid())       // UUID идентификатор
+  endpoint  String   @unique                     // URL push-сервиса (уникален для каждого браузера)
+  p256dh    String                               // Публичный ключ шифрования (P-256 Diffie-Hellman)
+  auth      String                               // Секрет аутентификации для шифрования
+  createdAt DateTime @default(now())             // Дата создания подписки
+
+  @@map("push_subscriptions") // Имя таблицы в PostgreSQL
 }

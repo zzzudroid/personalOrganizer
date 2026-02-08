@@ -1,25 +1,51 @@
 "use client";
 
+/**
+ * Компонент QuickAddTask - модальное окно быстрого создания задачи на конкретную дату.
+ *
+ * Основные возможности:
+ * - Создание задачи с автоматически привязанной датой (dueDate)
+ * - Упрощённая форма: название, описание, приоритет, категория
+ * - Дата задачи устанавливается автоматически из пропса date
+ * - Уведомление родителя о создании через callback onTaskCreated
+ *
+ * Вызывается из DayView при нажатии "Добавить задачу".
+ * Отличие от CreateTaskButton: дата задачи предустановлена, нет поля выбора даты.
+ * z-index: 70 (поверх DayView с z-index 50).
+ */
+
 import { useState, useEffect } from "react";
 import { X, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
+/** Пропсы компонента QuickAddTask */
 interface QuickAddTaskProps {
+  /** Дата, на которую создаётся задача (автоматически устанавливается как dueDate) */
   date: Date;
+  /** Callback для закрытия модального окна */
   onClose: () => void;
+  /** Callback при успешном создании задачи (для обновления списка задач) */
   onTaskCreated: () => void;
 }
 
+/** Интерфейс категории для выпадающего списка */
 interface Category {
   id: string;
   name: string;
   color: string;
 }
 
+/**
+ * Компонент модального окна быстрого добавления задачи.
+ * Принимает дату через пропсы и автоматически привязывает к ней создаваемую задачу.
+ */
 export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddTaskProps) {
+  // Флаг отправки формы (блокирует кнопку и показывает "Создание...")
   const [loading, setLoading] = useState(false);
+  // Список категорий для выпадающего списка
   const [categories, setCategories] = useState<Category[]>([]);
+  // Данные формы (без dueDate - она берётся из пропса date)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -27,10 +53,14 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
     categoryId: "",
   });
 
+  // Загрузка категорий при монтировании компонента
   useEffect(() => {
     loadCategories();
   }, []);
 
+  /**
+   * Загружает список категорий из API для выпадающего списка.
+   */
   const loadCategories = async () => {
     try {
       const response = await fetch("/api/categories");
@@ -43,6 +73,11 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
     }
   };
 
+  /**
+   * Обработчик отправки формы создания задачи.
+   * Дата задачи (dueDate) форматируется из пропса date в "yyyy-MM-dd".
+   * При успехе вызывает callback onTaskCreated для обновления DayView.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -55,14 +90,15 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
           title: formData.title,
           description: formData.description || undefined,
           priority: formData.priority,
-          status: "todo",
-          sortOrder: 0,
-          dueDate: format(date, "yyyy-MM-dd"),
+          status: "todo", // Новые задачи создаются со статусом "todo"
+          sortOrder: 0, // Попадает в начало списка
+          dueDate: format(date, "yyyy-MM-dd"), // Автоматическая привязка к выбранной дате
           categoryId: formData.categoryId || undefined,
         }),
       });
 
       if (response.ok) {
+        // Уведомляем родителя об успешном создании
         onTaskCreated();
       } else {
         throw new Error("Failed to create task");
@@ -78,13 +114,16 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]">
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+        {/* Заголовок с датой и кнопкой закрытия */}
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-semibold">Новая задача</h2>
+            {/* Подзаголовок с указанием даты на русском языке */}
             <p className="text-sm text-gray-500">
               На {format(date, "d MMMM yyyy", { locale: ru })}
             </p>
           </div>
+          {/* Кнопка закрытия (крестик) */}
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -94,6 +133,7 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Поле названия задачи (обязательное, автофокус) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Название *
@@ -109,6 +149,7 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
             />
           </div>
 
+          {/* Поле описания (опциональное) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Описание
@@ -122,6 +163,7 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
             />
           </div>
 
+          {/* Приоритет и категория в одной строке (grid 2 колонки) */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -157,6 +199,7 @@ export default function QuickAddTask({ date, onClose, onTaskCreated }: QuickAddT
             </div>
           </div>
 
+          {/* Кнопки формы: Отмена и Добавить */}
           <div className="flex gap-3 pt-4">
             <button
               type="button"

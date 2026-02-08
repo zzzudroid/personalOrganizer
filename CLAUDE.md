@@ -270,6 +270,9 @@ DATABASE_URL="postgresql://user:password@host.neon.tech/db?sslmode=require"
 # Опционально для push-уведомлений
 VAPID_PUBLIC_KEY="..."
 VAPID_PRIVATE_KEY="..."
+
+# Опционально для майнинг-статистики
+HASHVAULT_WALLET_ADDRESS="your_monero_wallet_address"
 ```
 
 ### Vercel Deployment
@@ -362,12 +365,19 @@ GET /api/financial/mining-stats          - HashVault статистика + вы
 ```
 
 **Components** (`src/components/Dashboard/`):
-- `CurrencyPanel.tsx` - универсальная панель (USD/XMR/Ставка) с графиками
-- `MiningPanel.tsx` - специальная панель для HashVault
-- `RateChart.tsx` - Chart.js обертка для линейных графиков
-- `PayoutCalendar.tsx` - календарь выплат майнинга (grid 7x4)
+- `CurrencyPanel.tsx` - универсальная панель (USD/XMR/Ставка) с градиентной карточкой слева и графиком справа
+- `MiningPanel.tsx` - панель HashVault со статистикой слева и календарём выплат справа
+- `RateChart.tsx` - Chart.js обертка для линейных графиков (тёмная тема)
+- `PayoutCalendar.tsx` - календарь выплат майнинга (тёмная тема, grid 7x4)
 
-**Page:** `/finances` - 2x2 grid layout с 4 панелями
+**Page:** `/finances` - тёмная тема (`bg-gray-900`), 2x2 grid layout с 4 панелями
+
+**Дизайн панелей:**
+- Каждая панель: `bg-gray-800 rounded-xl`, горизонтальный flex
+- Левая часть: градиентная карточка с курсом/данными + кнопка обновления
+- Правая часть: график (Chart.js) + мин/макс/% изменения
+- Цветовые badges для источников данных (ЦБ РФ, MEXC, HashVault)
+- CurrencyPanel принимает props: `gradient`, `badgeColor`, `icon`, `unit`, `chartTitle`
 
 ### Key Technical Details
 
@@ -393,37 +403,24 @@ GET /api/financial/mining-stats          - HashVault статистика + вы
   const xmr = atomicUnits / 1_000_000_000_000;
   ```
 
-**Chart.js Configuration:**
+**Chart.js Configuration (тёмная тема):**
 ```typescript
 // ВАЖНО: Регистрация компонентов обязательна в v4!
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  LineController,
-  Tooltip,
-  Legend,
-  Filler
-} from 'chart.js';
+ChartJS.register(CategoryScale, LinearScale, PointElement,
+  LineElement, LineController, Title, Tooltip, Legend, Filler);
 
-ChartJS.register(
-  CategoryScale, LinearScale, PointElement,
-  LineElement, LineController, Tooltip, Legend, Filler
-);
-
-// График конфигурация
+// График — тёмная тема
 {
   type: "line",
   options: {
     responsive: true,
     maintainAspectRatio: false,
-    elements: { line: { tension: 0.4 } }, // плавные кривые
+    elements: { line: { tension: 0.4 } },
     scales: {
-      x: { grid: { display: false } },
-      y: { grid: { color: 'rgba(0,0,0,0.05)' } }
-    }
+      x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.5)' } },
+      y: { grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'rgba(255,255,255,0.5)' } }
+    },
+    plugins: { tooltip: { backgroundColor: 'rgba(30,30,30,0.9)' } }
   }
 }
 ```
@@ -431,7 +428,7 @@ ChartJS.register(
 **Data Refresh:**
 - ТОЛЬКО по кнопке "Обновить" (НЕТ auto-refresh)
 - Loading state с spinner
-- Error handling: красные блоки (`bg-red-100 border-2 border-red-500`)
+- Error handling: тёмные красные блоки (`bg-red-900/50 border border-red-500`)
 
 ### Environment Variables
 
@@ -458,5 +455,6 @@ HASHVAULT_WALLET_ADDRESS="your_monero_wallet_address"
 См. README.md "Дальнейшее развитие":
 - Telegram бот для уведомлений
 - Повторяющиеся задачи
-- Темная тема
+- Тёмная тема для всего приложения (финансовый дашборд уже в тёмной теме)
 - Экспорт/импорт данных
+- Статистика и аналитика

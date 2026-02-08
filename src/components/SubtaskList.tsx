@@ -1,29 +1,63 @@
 "use client";
 
+/**
+ * Компонент SubtaskList - управление подзадачами (чеклист) внутри задачи.
+ *
+ * Основные возможности:
+ * - Отображение списка подзадач с чекбоксами
+ * - Создание новых подзадач (по кнопке или Enter)
+ * - Переключение статуса выполнения подзадачи (completed)
+ * - Удаление подзадач
+ * - Drag & Drop для изменения порядка подзадач
+ * - Прогресс-бар с процентом выполнения
+ * - Счётчик выполненных подзадач (N из M)
+ *
+ * Встраивается в модальное окно редактирования задачи (TaskList, DayView).
+ * Работает с отдельными API endpoints: /api/tasks/[id]/subtasks и /api/subtasks/[id].
+ */
+
 import { useState, useEffect } from "react";
 import { Plus, Trash2, GripVertical } from "lucide-react";
 
+/** Интерфейс подзадачи с полями для отображения и сортировки */
 interface Subtask {
   id: string;
   title: string;
+  /** Статус выполнения подзадачи */
   completed: boolean;
+  /** Порядок сортировки для drag & drop */
   sortOrder: number;
 }
 
+/** Пропсы компонента SubtaskList */
 interface SubtaskListProps {
+  /** ID родительской задачи для загрузки и создания подзадач */
   taskId: string;
 }
 
+/**
+ * Компонент списка подзадач с CRUD операциями и drag & drop.
+ * Получает ID задачи и самостоятельно управляет загрузкой/сохранением подзадач.
+ */
 export default function SubtaskList({ taskId }: SubtaskListProps) {
+  // Массив подзадач, загруженный из API
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  // Текст новой подзадачи (поле ввода)
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  // Флаг создания подзадачи (блокирует кнопку добавления)
   const [loading, setLoading] = useState(false);
+  // Перетаскиваемая подзадача для drag & drop
   const [draggedSubtask, setDraggedSubtask] = useState<Subtask | null>(null);
 
+  // Загрузка подзадач при изменении taskId
   useEffect(() => {
     loadSubtasks();
   }, [taskId]);
 
+  /**
+   * Загружает подзадачи из API по ID родительской задачи.
+   * Подзадачи возвращаются отсортированными по sortOrder.
+   */
   const loadSubtasks = async () => {
     try {
       const response = await fetch(`/api/tasks/${taskId}/subtasks`);
@@ -36,7 +70,13 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
     }
   };
 
+  /**
+   * Создаёт новую подзадачу через POST запрос.
+   * sortOrder устанавливается равным текущему количеству подзадач (добавление в конец).
+   * После создания очищает поле ввода и перезагружает список.
+   */
   const addSubtask = async () => {
+    // Проверяем, что поле ввода не пустое
     if (!newSubtaskTitle.trim()) return;
 
     setLoading(true);
@@ -46,13 +86,13 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: newSubtaskTitle,
-          sortOrder: subtasks.length,
+          sortOrder: subtasks.length, // Новая подзадача добавляется в конец списка
         }),
       });
 
       if (response.ok) {
-        setNewSubtaskTitle("");
-        loadSubtasks();
+        setNewSubtaskTitle(""); // Очищаем поле ввода
+        loadSubtasks(); // Перезагружаем список для отображения новой подзадачи
       }
     } catch (error) {
       console.error("Ошибка при создании подзадачи:", error);
@@ -61,6 +101,10 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
     }
   };
 
+  /**
+   * Переключает статус выполнения подзадачи (completed: true ↔ false).
+   * Отправляет PUT запрос с инвертированным значением completed.
+   */
   const toggleSubtask = async (subtask: Subtask) => {
     try {
       const response = await fetch(`/api/subtasks/${subtask.id}`, {
@@ -72,13 +116,17 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
       });
 
       if (response.ok) {
-        loadSubtasks();
+        loadSubtasks(); // Перезагружаем для обновления UI
       }
     } catch (error) {
       console.error("Ошибка при обновлении подзадачи:", error);
     }
   };
 
+  /**
+   * Удаляет подзадачу по ID.
+   * Без подтверждения (в отличие от удаления задачи).
+   */
   const deleteSubtask = async (subtaskId: string) => {
     try {
       const response = await fetch(`/api/subtasks/${subtaskId}`, {
@@ -86,33 +134,48 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
       });
 
       if (response.ok) {
-        loadSubtasks();
+        loadSubtasks(); // Перезагружаем список
       }
     } catch (error) {
       console.error("Ошибка при удалении подзадачи:", error);
     }
   };
 
+  // === Обработчики Drag & Drop для сортировки подзадач ===
+
+  /**
+   * Обработчик начала перетаскивания подзадачи.
+   * Сохраняет ссылку на подзадачу и её ID в dataTransfer.
+   */
   const handleDragStart = (e: React.DragEvent, subtask: Subtask) => {
     setDraggedSubtask(subtask);
     e.dataTransfer.setData("subtaskId", subtask.id);
     e.dataTransfer.effectAllowed = "move";
   };
 
+  /**
+   * Обработчик drop - перемещает подзадачу на новую позицию.
+   * Логика аналогична TaskList: splice массива + batch PUT для sortOrder.
+   * Оптимистичное обновление UI с последующей синхронизацией через API.
+   */
   const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
     if (!draggedSubtask) return;
 
+    // Находим текущий индекс перетаскиваемой подзадачи
     const dragIndex = subtasks.findIndex((s) => s.id === draggedSubtask.id);
     if (dragIndex === dropIndex) return;
 
+    // Перемещаем элемент в массиве
     const newSubtasks = [...subtasks];
     const [removed] = newSubtasks.splice(dragIndex, 1);
     newSubtasks.splice(dropIndex, 0, removed);
 
+    // Пересчитываем sortOrder и обновляем UI оптимистично
     const reordered = newSubtasks.map((s, i) => ({ ...s, sortOrder: i }));
     setSubtasks(reordered);
 
+    // Batch-обновление sortOrder всех подзадач через параллельные PUT запросы
     try {
       await Promise.all(
         reordered.map((subtask, index) =>
@@ -130,11 +193,15 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
     setDraggedSubtask(null);
   };
 
+  // === Вычисление прогресса ===
+  // Количество выполненных подзадач
   const completedCount = subtasks.filter((s) => s.completed).length;
+  // Процент выполнения для прогресс-бара (0-100)
   const progress = subtasks.length > 0 ? (completedCount / subtasks.length) * 100 : 0;
 
   return (
     <div className="mt-4 pt-4 border-t border-gray-200">
+      {/* Заголовок секции с счётчиком выполненных подзадач */}
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-medium text-gray-700">Подзадачи</h4>
         <span className="text-xs text-gray-500">
@@ -142,10 +209,11 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
         </span>
       </div>
 
-      {/* Прогресс-бар */}
+      {/* Прогресс-бар (отображается только при наличии подзадач) */}
       {subtasks.length > 0 && (
         <div className="mb-3">
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            {/* Заполненная часть прогресс-бара с плавной анимацией */}
             <div
               className="h-full bg-blue-500 transition-all duration-300"
               style={{ width: `${progress}%` }}
@@ -154,7 +222,7 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
         </div>
       )}
 
-      {/* Список подзадач */}
+      {/* Список подзадач с drag & drop */}
       <div className="space-y-2 mb-3">
         {subtasks.map((subtask, index) => (
           <div
@@ -167,8 +235,10 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
               subtask.completed ? "opacity-60" : ""
             }`}
           >
+            {/* Иконка захвата для перетаскивания */}
             <GripVertical className="w-4 h-4 text-gray-400 cursor-grab" />
-            
+
+            {/* Кнопка-чекбокс для переключения статуса */}
             <button
               onClick={() => toggleSubtask(subtask)}
               className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
@@ -177,6 +247,7 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
                   : "border-gray-300 hover:border-blue-500"
               }`}
             >
+              {/* Галочка для выполненных подзадач */}
               {subtask.completed && (
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -184,6 +255,7 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
               )}
             </button>
 
+            {/* Название подзадачи (зачёркнутое для выполненных) */}
             <span
               className={`flex-1 text-sm ${
                 subtask.completed ? "line-through text-gray-400" : "text-gray-700"
@@ -192,6 +264,7 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
               {subtask.title}
             </span>
 
+            {/* Кнопка удаления (видима только при наведении на элемент) */}
             <button
               onClick={() => deleteSubtask(subtask.id)}
               className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
@@ -202,7 +275,7 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
         ))}
       </div>
 
-      {/* Добавление подзадачи */}
+      {/* Форма добавления новой подзадачи (поле ввода + кнопка) */}
       <div className="flex gap-2">
         <input
           type="text"
@@ -212,6 +285,7 @@ export default function SubtaskList({ taskId }: SubtaskListProps) {
           placeholder="Новая подзадача..."
           className="flex-1 px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
+        {/* Кнопка добавления (заблокирована при загрузке или пустом поле) */}
         <button
           onClick={addSubtask}
           disabled={loading || !newSubtaskTitle.trim()}
