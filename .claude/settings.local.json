@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude update:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(test:*)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)",
+      "Bash(echo:*)",
+      "Bash(rd /s /q \"src\\\\app\\\\api\\\\finance\")",
+      "Bash(git add:*)"
+    ]
+  }
+}
