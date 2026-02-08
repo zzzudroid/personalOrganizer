@@ -5,6 +5,43 @@ import { CurrencyRate, KeyRate } from './types';
 
 const parseXML = promisify(parseString);
 
+// Интерфейсы для структуры XML от ЦБ РФ
+interface CBRValute {
+  CharCode?: string[];
+  Value?: string[];
+  Nominal?: string[];
+}
+
+interface CBRRecord {
+  $?: { Date?: string };
+  Value?: string[];
+}
+
+interface CBRRoot {
+  ValCurs?: {
+    $?: { Date?: string };
+    Valute?: CBRValute[];
+    Record?: CBRRecord[];
+  };
+  Envelope?: {
+    Body?: Array<{
+      GetLatestDateTime_Resp?: Array<{
+        GetLatestDateTime_ResResult?: string[];
+      }>;
+      GetCursDynamicResult?: Array<{
+        ValuteData?: Array<{
+          ValuteCursOnDate?: Array<{
+            Vname?: string[];
+            Vnom?: string[];
+            Vcurs?: string[];
+            VunitRate?: string[];
+          }>;
+        }>;
+      }>;
+    }>;
+  };
+}
+
 /**
  * Преобразует дату из формата DD.MM.YYYY в YYYY-MM-DD
  */
@@ -39,7 +76,7 @@ export async function getUsdRate(): Promise<CurrencyRate | null> {
     const decoder = new TextDecoder('windows-1251');
     const xml = decoder.decode(buffer);
 
-    const result = await parseXML(xml);
+    const result = await parseXML(xml) as CBRRoot;
     const root = result.ValCurs;
 
     if (!root || !root.Valute) {
@@ -91,7 +128,7 @@ export async function getRateOnDate(dateStr: string): Promise<number | null> {
     const decoder = new TextDecoder('windows-1251');
     const xml = decoder.decode(buffer);
 
-    const result = await parseXML(xml);
+    const result = await parseXML(xml) as CBRRoot;
     const root = result.ValCurs;
 
     if (!root || !root.Valute) {
@@ -155,7 +192,7 @@ export async function getUsdRateHistory(days: number = 30): Promise<CurrencyRate
     const decoder = new TextDecoder('windows-1251');
     const xml = decoder.decode(buffer);
 
-    const result = await parseXML(xml);
+    const result = await parseXML(xml) as CBRRoot;
     const root = result.ValCurs;
 
     if (!root || !root.Record) {

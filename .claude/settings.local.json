@@ -10,7 +10,9 @@
       "Bash(curl:*)",
       "Bash(echo:*)",
       "Bash(rd /s /q \"src\\\\app\\\\api\\\\finance\")",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

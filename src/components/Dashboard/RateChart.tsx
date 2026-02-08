@@ -67,7 +67,9 @@ export default function RateChart({ data, color, label }: RateChartProps) {
           intersect: false,
           callbacks: {
             label: (context) => {
-              return `${label}: ${context.parsed.y.toFixed(2)}`;
+              const value = context.parsed.y;
+              if (value === null) return '';
+              return `${label}: ${value.toFixed(2)}`;
             }
           }
         }
