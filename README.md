@@ -24,6 +24,11 @@
 - Статистика майнинга Monero — HashVault (хешрейт, баланс, календарь выплат)
 - Тёмная тема с градиентными карточками
 
+### Telegram-бот
+- Команда `/stats` — полная финансовая сводка в одном сообщении
+- USD/RUB, XMR/USDT, ключевая ставка ЦБ, статистика майнинга
+- Работает на Vercel через webhook
+
 ### Синхронизация и PWA
 - Данные в облаке (PostgreSQL) — доступно с любого устройства
 - PWA — установка как приложение на телефон/десктоп
@@ -126,6 +131,21 @@ VAPID_PRIVATE_KEY="скопируй_приватный_ключ"
 HASHVAULT_WALLET_ADDRESS="твой_адрес_monero_кошелька"
 ```
 
+### Telegram-бот
+
+1. Создай бота через [@BotFather](https://t.me/BotFather) командой `/newbot`
+2. Добавь токен в `.env`:
+```env
+TELEGRAM_BOT_TOKEN="токен_от_botfather"
+```
+3. После деплоя на Vercel установи webhook:
+```bash
+curl -X POST "https://api.telegram.org/bot<ТОКЕН>/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://твой-домен.vercel.app/api/telegram/webhook"}'
+```
+4. Отправь `/stats` боту — получишь финансовую сводку
+
 ---
 
 ## Деплой на Vercel
@@ -136,7 +156,9 @@ HASHVAULT_WALLET_ADDRESS="твой_адрес_monero_кошелька"
    - `DATABASE_URL` — строка подключения из Neon
    - `VAPID_PUBLIC_KEY` и `VAPID_PRIVATE_KEY` — для push-уведомлений (опционально)
    - `HASHVAULT_WALLET_ADDRESS` — для майнинг-статистики (опционально)
+   - `TELEGRAM_BOT_TOKEN` — для Telegram-бота (опционально)
 4. Нажми **Deploy**
+5. Для Telegram-бота: установи webhook (см. раздел "Telegram-бот" выше)
 
 При каждом `git push` в main Vercel автоматически пересобирает и деплоит проект.
 
@@ -190,6 +212,7 @@ HASHVAULT_WALLET_ADDRESS="твой_адрес_monero_кошелька"
 | next-pwa | PWA поддержка |
 | web-push | Push-уведомления |
 | xml2js | Парсинг XML от ЦБ РФ |
+| grammy | Telegram Bot API |
 
 ---
 
@@ -216,6 +239,7 @@ personalOrganizer/
 │   │       ├── subtasks/      # CRUD подзадач
 │   │       ├── categories/    # CRUD категорий
 │   │       ├── push/          # Push-уведомления
+│   │       ├── telegram/      # Telegram bot webhook
 │   │       └── financial/     # Финансовые данные
 │   │           ├── usd-rate/          # Курс USD/RUB (ЦБ РФ)
 │   │           ├── xmr-rate/          # Курс XMR/USDT (MEXC)
@@ -237,6 +261,8 @@ personalOrganizer/
 │   │       └── PayoutCalendar.tsx   # Календарь выплат
 │   └── lib/
 │       ├── db.ts              # Prisma клиент (singleton)
+│       ├── telegram/
+│       │   └── bot.ts         # Telegram-бот (grammy)
 │       └── parsers/           # Парсеры внешних API
 │           ├── types.ts       # TypeScript типы
 │           ├── cbr.ts         # ЦБ РФ (USD, ключевая ставка)
@@ -285,7 +311,7 @@ npx prisma migrate dev --name init
 - [x] Push-уведомления
 - [x] Финансовый дашборд (USD, XMR, ставка ЦБ, майнинг)
 - [x] Тёмная тема финансового дашборда
-- [ ] Telegram бот для уведомлений
+- [x] Telegram-бот с финансовой сводкой (/stats)
 - [ ] Повторяющиеся задачи
 - [ ] Экспорт/импорт данных
 - [ ] Тёмная тема для всего приложения

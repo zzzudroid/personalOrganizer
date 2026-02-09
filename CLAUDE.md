@@ -273,12 +273,16 @@ VAPID_PRIVATE_KEY="..."
 
 # Опционально для майнинг-статистики
 HASHVAULT_WALLET_ADDRESS="your_monero_wallet_address"
+
+# Опционально для Telegram-бота
+TELEGRAM_BOT_TOKEN="your_bot_token_from_botfather"
 ```
 
 ### Vercel Deployment
 1. Подключить GitHub репозиторий
-2. Добавить Environment Variables (DATABASE_URL + VAPID ключи)
+2. Добавить Environment Variables (DATABASE_URL + VAPID ключи + TELEGRAM_BOT_TOKEN)
 3. Deploy (автоматический build + migrate)
+4. Установить Telegram webhook: `curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" -H "Content-Type: application/json" -d '{"url": "https://your-domain.vercel.app/api/telegram/webhook"}'`
 
 **Важно:**
 - Next.js 14.x (НЕ 15.x)
@@ -429,6 +433,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement,
 - ТОЛЬКО по кнопке "Обновить" (НЕТ auto-refresh)
 - Loading state с spinner
 - Error handling: тёмные красные блоки (`bg-red-900/50 border border-red-500`)
+- Все API routes используют `export const dynamic = 'force-dynamic'` (отключение кеширования Vercel)
+- Все fetch-запросы к внешним API используют `cache: 'no-store'`
 
 ### Environment Variables
 
@@ -450,10 +456,59 @@ HASHVAULT_WALLET_ADDRESS="your_monero_wallet_address"
 4. Использовать `CurrencyPanel` или создать новый компонент
 5. Добавить в grid на `/finances` странице
 
+## Telegram Bot
+
+### Overview
+
+Telegram-бот для получения финансовой сводки через команду `/stats`. Работает на Vercel через webhook (не polling).
+
+### Architecture
+
+```
+Telegram → POST /api/telegram/webhook → grammy Bot → парсеры → ответ
+```
+
+**Файлы:**
+- `src/lib/telegram/bot.ts` — логика бота (команды /start, /stats)
+- `src/app/api/telegram/webhook/route.ts` — webhook endpoint
+- `scripts/set-telegram-webhook.ts` — скрипт установки webhook
+
+### Команды бота
+
+- `/start` — приветствие с описанием
+- `/stats` — финансовая сводка (USD/RUB, XMR/USDT, ставка ЦБ, майнинг HashVault)
+
+### Технические детали
+
+- **Framework:** grammy (lightweight Telegram Bot API)
+- **Режим:** Webhook (НЕ polling — Vercel serverless не поддерживает long-running процессы)
+- **Парсеры:** Вызываются напрямую (не через HTTP), переиспользуя `getUsdRate()`, `getXmrUsdtRate()`, `getCbrKeyRate()`, `getHashVaultStats()`
+- **Параллельность:** `Promise.allSettled()` — все 4 запроса параллельно
+- **Формат:** Telegram MarkdownV2 (спецсимволы экранируются функцией `esc()`)
+
+### Настройка webhook
+
+После деплоя на Vercel:
+```bash
+curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://your-domain.vercel.app/api/telegram/webhook"}'
+```
+
+Или через скрипт (требует .env с токеном):
+```bash
+npx tsx scripts/set-telegram-webhook.ts https://your-domain.vercel.app
+```
+
+### Environment Variables
+
+```env
+TELEGRAM_BOT_TOKEN="your_token_from_botfather"
+```
+
 ## Future Development Roadmap
 
 См. README.md "Дальнейшее развитие":
-- Telegram бот для уведомлений
 - Повторяющиеся задачи
 - Тёмная тема для всего приложения (финансовый дашборд уже в тёмной теме)
 - Экспорт/импорт данных
