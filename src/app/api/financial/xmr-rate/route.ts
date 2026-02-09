@@ -11,6 +11,8 @@
 import { NextResponse } from 'next/server';
 import { getXmrUsdtRate } from '@/lib/parsers/mexc';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Получает текущий курс Monero к USDT с биржи MEXC.
  *

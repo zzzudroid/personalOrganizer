@@ -13,6 +13,8 @@
 import { NextResponse } from 'next/server';
 import { getXmrUsdtHistory } from '@/lib/parsers/mexc';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Получает историю курса Monero за указанный период.
  *

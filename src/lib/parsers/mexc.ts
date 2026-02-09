@@ -46,7 +46,7 @@ export async function getXmrUsdtRate(): Promise<CryptoRate | null> {
   const url = 'https://api.mexc.com/api/v3/ticker/24hr?symbol=XMRUSDT';
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {
       console.error(`Ошибка HTTP: ${response.status}`);
@@ -91,7 +91,7 @@ export async function getXmrUsdtHistory(days: number = 30): Promise<CurrencyRate
   const url = `https://api.mexc.com/api/v3/klines?symbol=XMRUSDT&interval=1d&limit=${days}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {
       console.error(`Ошибка HTTP: ${response.status}`);

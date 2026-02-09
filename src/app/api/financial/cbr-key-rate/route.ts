@@ -11,6 +11,8 @@
 import { NextResponse } from 'next/server';
 import { getCbrKeyRate } from '@/lib/parsers/cbr';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Получает текущую ключевую ставку ЦБ РФ.
  *

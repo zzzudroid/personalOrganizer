@@ -13,6 +13,8 @@
 import { NextResponse } from 'next/server';
 import { getUsdRateHistory } from '@/lib/parsers/cbr';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Получает историю курса доллара за указанный период.
  *

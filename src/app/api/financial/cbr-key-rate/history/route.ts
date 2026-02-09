@@ -16,6 +16,8 @@
 import { NextResponse } from 'next/server';
 import { getCbrKeyRateHistory } from '@/lib/parsers/cbr';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Получает историю изменений ключевой ставки ЦБ РФ.
  *

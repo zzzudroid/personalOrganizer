@@ -135,7 +135,7 @@ export async function getUsdRate(): Promise<CurrencyRate | null> {
   const url = 'https://www.cbr.ru/scripts/XML_daily.asp';
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {
       console.error(`Ошибка HTTP: ${response.status}`);
@@ -198,7 +198,7 @@ export async function getRateOnDate(dateStr: string): Promise<number | null> {
   const url = `https://www.cbr.ru/scripts/XML_daily.asp?date_req=${dateStr}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {
       console.error(`Ошибка HTTP: ${response.status}`);
@@ -278,7 +278,7 @@ export async function getUsdRateHistory(days: number = 30): Promise<CurrencyRate
   const url = `http://www.cbr.ru/scripts/XML_dynamic.asp?date_req1=${startStr}&date_req2=${endStr}&VAL_NM_RQ=R01235`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {
       console.error(`Ошибка HTTP: ${response.status}`);
@@ -342,7 +342,7 @@ export async function getCbrKeyRate(): Promise<KeyRate | null> {
   const url = 'https://www.cbr.ru/hd_base/KeyRate/';
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {
       console.error(`Ошибка HTTP: ${response.status}`);
@@ -399,7 +399,7 @@ export async function getCbrKeyRateHistory(days: number = 90): Promise<KeyRate[]
   const url = 'https://www.cbr.ru/hd_base/KeyRate/';
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {
       console.error(`Ошибка HTTP: ${response.status}`);

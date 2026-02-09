@@ -14,6 +14,9 @@
 import { NextResponse } from 'next/server';
 import { getHashVaultStats } from '@/lib/parsers/hashvault';
 
+/** Отключаем кеширование — данные майнинга должны быть актуальными при каждом запросе */
+export const dynamic = 'force-dynamic';
+
 /**
  * Получает статистику майнинга Monero с пула HashVault.
  *

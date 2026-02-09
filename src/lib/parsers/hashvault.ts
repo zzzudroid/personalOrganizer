@@ -136,7 +136,8 @@ export async function getHashVaultStats(walletAddress: string): Promise<MiningSt
     const statsResponse = await fetch(statsUrl, {
       headers: {
         'Accept': 'application/json' // Явно запрашиваем JSON-ответ
-      }
+      },
+      cache: 'no-store' // Отключаем кеширование Next.js для актуальных данных
     });
 
     if (!statsResponse.ok) {
@@ -151,7 +152,8 @@ export async function getHashVaultStats(walletAddress: string): Promise<MiningSt
     const paymentsResponse = await fetch(paymentsUrl, {
       headers: {
         'Accept': 'application/json'
-      }
+      },
+      cache: 'no-store' // Отключаем кеширование Next.js для актуальных данных
     });
 
     if (!paymentsResponse.ok) {

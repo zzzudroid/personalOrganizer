@@ -11,6 +11,8 @@
 import { NextResponse } from 'next/server';
 import { getUsdRate } from '@/lib/parsers/cbr';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Получает текущий курс доллара США к российскому рублю.
  *
