@@ -1,10 +1,11 @@
 /**
  * @file Страница финансового дашборда
- * @description Отображает сетку из 4 панелей с финансовыми данными:
+ * @description Отображает сетку из 5 панелей с финансовыми данными:
  * 1. Курс USD/RUB (ЦБ РФ) — через CurrencyPanel
  * 2. Курс XMR/USDT (MEXC) — через CurrencyPanel
- * 3. Статистика майнинга Monero (HashVault) — через MiningPanel
- * 4. Ключевая ставка ЦБ РФ — через CurrencyPanel
+ * 3. Мониторинг spot-ордера MEXC — через MexcSpotOrderPanel
+ * 4. Статистика майнинга Monero (HashVault) — через MiningPanel
+ * 5. Ключевая ставка ЦБ РФ — через CurrencyPanel
  *
  * Является Client Component ("use client"), так как дочерние компоненты
  * используют useState/useEffect для загрузки данных.
@@ -20,6 +21,7 @@
 
 import CurrencyPanel from '@/components/Dashboard/CurrencyPanel';
 import MiningPanel from '@/components/Dashboard/MiningPanel';
+import MexcSpotOrderPanel from '@/components/Dashboard/MexcSpotOrderPanel';
 
 /**
  * Компонент страницы финансового дашборда.
@@ -68,11 +70,14 @@ export default function FinancesPage() {
           unit="USDT"
         />
 
-        {/* ===== Панель 3: Статистика майнинга Monero (HashVault) ===== */}
+        {/* ===== Панель 3: Мониторинг spot-ордера MEXC ===== */}
+        <MexcSpotOrderPanel />
+
+        {/* ===== Панель 4: Статистика майнинга Monero (HashVault) ===== */}
         {/* MiningPanel — специализированная панель с хешрейтом, балансом и календарем выплат */}
         <MiningPanel />
 
-        {/* ===== Панель 4: Ключевая ставка ЦБ РФ ===== */}
+        {/* ===== Панель 5: Ключевая ставка ЦБ РФ ===== */}
         <CurrencyPanel
           title="Ключевая ставка"
           panelTitle="Ключевая ставка"

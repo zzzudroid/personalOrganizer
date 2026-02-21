@@ -1,4 +1,4 @@
-# Personal Organizer
+﻿# Personal Organizer
 
 Персональный органайзер с календарем, управлением задачами и финансовым дашбордом.
 
@@ -20,6 +20,7 @@
 ### Финансовый дашборд (`/finances`)
 - Курс USD/RUB — данные ЦБ РФ с графиком за 30/60/90 дней
 - Курс XMR/USDT — данные биржи MEXC с графиком
+- Мониторинг spot-ордера MEXC (symbol + orderId, автообновление статуса)
 - Ключевая ставка ЦБ РФ — текущая и история изменений
 - Статистика майнинга Monero — HashVault (хешрейт, баланс, календарь выплат)
 - Тёмная тема с градиентными карточками
@@ -145,6 +146,15 @@ curl -X POST "https://api.telegram.org/bot<ТОКЕН>/setWebhook" \
   -d '{"url": "https://твой-домен.vercel.app/api/telegram/webhook"}'
 ```
 4. Отправь `/stats` боту — получишь финансовую сводку
+### Мониторинг Spot-ордера MEXC
+
+Для панели мониторинга ордера добавь в `.env`:
+```env
+MEXC_API_KEY="твой_mexc_api_key"
+MEXC_API_SECRET="твой_mexc_api_secret"
+```
+
+Рекомендуется создать API-ключ с правами только на чтение (Read only) и без вывода средств.
 
 ---
 
@@ -157,6 +167,7 @@ curl -X POST "https://api.telegram.org/bot<ТОКЕН>/setWebhook" \
    - `VAPID_PUBLIC_KEY` и `VAPID_PRIVATE_KEY` — для push-уведомлений (опционально)
    - `HASHVAULT_WALLET_ADDRESS` — для майнинг-статистики (опционально)
    - `TELEGRAM_BOT_TOKEN` — для Telegram-бота (опционально)
+   - `MEXC_API_KEY` и `MEXC_API_SECRET` — для мониторинга spot-ордера MEXC (опционально)
 4. Нажми **Deploy**
 5. Для Telegram-бота: установи webhook (см. раздел "Telegram-бот" выше)
 
@@ -316,3 +327,4 @@ npx prisma migrate dev --name init
 - [ ] Экспорт/импорт данных
 - [ ] Тёмная тема для всего приложения
 - [ ] Статистика и аналитика
+

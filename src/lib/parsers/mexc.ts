@@ -12,7 +12,8 @@
  * Индексы: [0]=timestamp, [1]=open, [2]=high, [3]=low, [4]=close, [5]=volume
  */
 
-import { CryptoRate, CurrencyRate } from './types';
+import { createHmac } from 'node:crypto';
+import { CryptoRate, CurrencyRate, MexcSpotOrder } from './types';
 
 /**
  * Преобразует Unix timestamp (в миллисекундах) в формат YYYY-MM-DD.
@@ -134,4 +135,112 @@ export async function getXmrUsdtHistory(days: number = 30): Promise<CurrencyRate
     console.error('Ошибка получения истории XMR/USDT:', error);
     return [];
   }
+}
+
+interface MexcSpotOrderQueryParams {
+  apiKey: string;
+  apiSecret: string;
+  symbol: string;
+  orderId: string;
+  recvWindow?: number;
+}
+
+interface MexcOrderResponse {
+  symbol?: string;
+  orderId?: number | string;
+  clientOrderId?: string;
+  price?: string;
+  origQty?: string;
+  executedQty?: string;
+  cummulativeQuoteQty?: string;
+  status?: string;
+  type?: string;
+  side?: string;
+  timeInForce?: string;
+  isWorking?: boolean;
+  time?: number | string;
+  updateTime?: number | string;
+}
+
+function toFiniteNumber(value: string | number | undefined): number {
+  const parsed = typeof value === 'number' ? value : parseFloat(value ?? '0');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toTimestamp(value: string | number | undefined): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(value ?? '0', 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function signQuery(params: URLSearchParams, apiSecret: string): string {
+  return createHmac('sha256', apiSecret).update(params.toString()).digest('hex');
+}
+
+/**
+ * Получает данные конкретного spot-ордера на MEXC по symbol + orderId.
+ * Использует приватный эндпоинт /api/v3/order (SIGNED).
+ */
+export async function getMexcSpotOrder({
+  apiKey,
+  apiSecret,
+  symbol,
+  orderId,
+  recvWindow = 5000
+}: MexcSpotOrderQueryParams): Promise<MexcSpotOrder> {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  const normalizedOrderId = orderId.trim();
+
+  if (!apiKey || !apiSecret) {
+    throw new Error('MEXC API key/secret is not configured');
+  }
+
+  if (!normalizedSymbol || !normalizedOrderId) {
+    throw new Error('symbol and orderId are required');
+  }
+
+  const params = new URLSearchParams({
+    symbol: normalizedSymbol,
+    orderId: normalizedOrderId,
+    recvWindow: String(recvWindow),
+    timestamp: String(Date.now())
+  });
+
+  params.set('signature', signQuery(params, apiSecret));
+
+  const url = `https://api.mexc.com/api/v3/order?${params.toString()}`;
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'X-MEXC-APIKEY': apiKey
+    }
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    const mexcMessage = typeof errorBody?.msg === 'string' ? errorBody.msg : null;
+    throw new Error(mexcMessage ?? `MEXC API request failed with status ${response.status}`);
+  }
+
+  const order: MexcOrderResponse = await response.json();
+
+  if (!order.symbol || order.orderId === undefined || !order.clientOrderId) {
+    throw new Error('Unexpected MEXC order response format');
+  }
+
+  return {
+    symbol: order.symbol,
+    orderId: String(order.orderId),
+    clientOrderId: order.clientOrderId,
+    price: toFiniteNumber(order.price),
+    origQty: toFiniteNumber(order.origQty),
+    executedQty: toFiniteNumber(order.executedQty),
+    cummulativeQuoteQty: toFiniteNumber(order.cummulativeQuoteQty),
+    status: order.status ?? 'UNKNOWN',
+    type: order.type ?? 'UNKNOWN',
+    side: order.side ?? 'UNKNOWN',
+    timeInForce: order.timeInForce ?? 'UNKNOWN',
+    isWorking: Boolean(order.isWorking),
+    time: toTimestamp(order.time),
+    updateTime: toTimestamp(order.updateTime)
+  };
 }

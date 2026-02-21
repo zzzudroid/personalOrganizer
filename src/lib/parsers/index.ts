@@ -28,7 +28,8 @@ export {
 // Экспорт парсеров MEXC (курс Monero и история)
 export {
   getXmrUsdtRate,
-  getXmrUsdtHistory
+  getXmrUsdtHistory,
+  getMexcSpotOrder
 } from './mexc';
 
 // Экспорт парсера HashVault (статистика майнинга Monero)

@@ -70,3 +70,38 @@ export interface KeyRate {
   /** Дата установления ставки в формате YYYY-MM-DD */
   date: string; // YYYY-MM-DD
 }
+
+/**
+ * Spot-ордер на бирже MEXC.
+ * Используется для мониторинга конкретного ордера через приватный API.
+ */
+export interface MexcSpotOrder {
+  /** Торговая пара (например, XMRUSDT) */
+  symbol: string;
+  /** ID ордера от биржи (храним как строку, чтобы не терять точность) */
+  orderId: string;
+  /** Клиентский ID ордера */
+  clientOrderId: string;
+  /** Цена ордера */
+  price: number;
+  /** Изначальный объем ордера */
+  origQty: number;
+  /** Исполненный объем */
+  executedQty: number;
+  /** Исполненная стоимость в quote-валюте */
+  cummulativeQuoteQty: number;
+  /** Статус ордера (NEW, PARTIALLY_FILLED, FILLED, CANCELED, и т.д.) */
+  status: string;
+  /** Тип ордера (LIMIT, MARKET и т.д.) */
+  type: string;
+  /** Сторона ордера (BUY/SELL) */
+  side: string;
+  /** Политика исполнения */
+  timeInForce: string;
+  /** Сервисный флаг биржи */
+  isWorking: boolean;
+  /** Время создания ордера (timestamp в мс) */
+  time: number;
+  /** Время последнего обновления ордера (timestamp в мс) */
+  updateTime: number;
+}
