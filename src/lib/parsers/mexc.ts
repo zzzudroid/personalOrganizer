@@ -145,6 +145,13 @@ interface MexcSpotOrderQueryParams {
   recvWindow?: number;
 }
 
+interface MexcOpenOrdersQueryParams {
+  apiKey: string;
+  apiSecret: string;
+  symbol?: string;
+  recvWindow?: number;
+}
+
 interface MexcOrderResponse {
   symbol?: string;
   orderId?: number | string;
@@ -176,6 +183,33 @@ function signQuery(params: URLSearchParams, apiSecret: string): string {
   return createHmac('sha256', apiSecret).update(params.toString()).digest('hex');
 }
 
+function normalizeSymbol(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function mapMexcOrder(order: MexcOrderResponse): MexcSpotOrder {
+  if (!order.symbol || order.orderId === undefined || !order.clientOrderId) {
+    throw new Error('Unexpected MEXC order response format');
+  }
+
+  return {
+    symbol: order.symbol,
+    orderId: String(order.orderId),
+    clientOrderId: order.clientOrderId,
+    price: toFiniteNumber(order.price),
+    origQty: toFiniteNumber(order.origQty),
+    executedQty: toFiniteNumber(order.executedQty),
+    cummulativeQuoteQty: toFiniteNumber(order.cummulativeQuoteQty),
+    status: order.status ?? 'UNKNOWN',
+    type: order.type ?? 'UNKNOWN',
+    side: order.side ?? 'UNKNOWN',
+    timeInForce: order.timeInForce ?? 'UNKNOWN',
+    isWorking: Boolean(order.isWorking),
+    time: toTimestamp(order.time),
+    updateTime: toTimestamp(order.updateTime)
+  };
+}
+
 /**
  * Получает данные конкретного spot-ордера на MEXC по symbol + orderId.
  * Использует приватный эндпоинт /api/v3/order (SIGNED).
@@ -187,7 +221,7 @@ export async function getMexcSpotOrder({
   orderId,
   recvWindow = 5000
 }: MexcSpotOrderQueryParams): Promise<MexcSpotOrder> {
-  const normalizedSymbol = symbol.trim().toUpperCase();
+  const normalizedSymbol = normalizeSymbol(symbol);
   const normalizedOrderId = orderId.trim();
 
   if (!apiKey || !apiSecret) {
@@ -222,25 +256,55 @@ export async function getMexcSpotOrder({
   }
 
   const order: MexcOrderResponse = await response.json();
+  return mapMexcOrder(order);
+}
 
-  if (!order.symbol || order.orderId === undefined || !order.clientOrderId) {
-    throw new Error('Unexpected MEXC order response format');
+/**
+ * Получает все активные spot-ордера на MEXC.
+ * Если symbol не передан, запрашивает ордера по всем парам.
+ */
+export async function getMexcOpenOrders({
+  apiKey,
+  apiSecret,
+  symbol,
+  recvWindow = 5000
+}: MexcOpenOrdersQueryParams): Promise<MexcSpotOrder[]> {
+  if (!apiKey || !apiSecret) {
+    throw new Error('MEXC API key/secret is not configured');
   }
 
-  return {
-    symbol: order.symbol,
-    orderId: String(order.orderId),
-    clientOrderId: order.clientOrderId,
-    price: toFiniteNumber(order.price),
-    origQty: toFiniteNumber(order.origQty),
-    executedQty: toFiniteNumber(order.executedQty),
-    cummulativeQuoteQty: toFiniteNumber(order.cummulativeQuoteQty),
-    status: order.status ?? 'UNKNOWN',
-    type: order.type ?? 'UNKNOWN',
-    side: order.side ?? 'UNKNOWN',
-    timeInForce: order.timeInForce ?? 'UNKNOWN',
-    isWorking: Boolean(order.isWorking),
-    time: toTimestamp(order.time),
-    updateTime: toTimestamp(order.updateTime)
-  };
+  const normalizedSymbol = symbol ? normalizeSymbol(symbol) : '';
+  const params = new URLSearchParams({
+    recvWindow: String(recvWindow),
+    timestamp: String(Date.now())
+  });
+
+  if (normalizedSymbol) {
+    params.set('symbol', normalizedSymbol);
+  }
+
+  params.set('signature', signQuery(params, apiSecret));
+
+  const url = `https://api.mexc.com/api/v3/openOrders?${params.toString()}`;
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'X-MEXC-APIKEY': apiKey
+    }
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    const mexcMessage = typeof errorBody?.msg === 'string' ? errorBody.msg : null;
+    throw new Error(mexcMessage ?? `MEXC API request failed with status ${response.status}`);
+  }
+
+  const orders = (await response.json()) as MexcOrderResponse[];
+  if (!Array.isArray(orders)) {
+    throw new Error('Unexpected MEXC open orders response format');
+  }
+
+  return orders
+    .map(mapMexcOrder)
+    .sort((a, b) => b.updateTime - a.updateTime);
 }

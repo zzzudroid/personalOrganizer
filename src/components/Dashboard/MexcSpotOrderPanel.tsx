@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { MexcSpotOrder } from '@/lib/parsers/types';
 
-const DEFAULT_SYMBOL = 'XMRUSDT';
+const DEFAULT_SYMBOL = '';
 const REFRESH_INTERVAL_MS = 15000;
 
 const OPEN_STATUSES = new Set(['NEW', 'PARTIALLY_FILLED']);
@@ -40,19 +40,26 @@ function formatDateTime(timestamp: number): string {
   });
 }
 
+function getStatusClass(status: string): string {
+  return STATUS_STYLES[status] ?? 'bg-gray-600 text-white';
+}
+
 export default function MexcSpotOrderPanel() {
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
   const [orderId, setOrderId] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState(false);
+  const [loadingOpenOrders, setLoadingOpenOrders] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [openOrdersError, setOpenOrdersError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [order, setOrder] = useState<MexcSpotOrder | null>(null);
+  const [openOrders, setOpenOrders] = useState<MexcSpotOrder[]>([]);
 
   useEffect(() => {
     const savedSymbol = localStorage.getItem('mexc_spot_symbol');
     const savedOrderId = localStorage.getItem('mexc_spot_order_id');
-    if (savedSymbol) {
+    if (savedSymbol !== null) {
       setSymbol(savedSymbol);
     }
     if (savedOrderId) {
@@ -70,19 +77,54 @@ export default function MexcSpotOrderPanel() {
 
   const normalizedSymbol = symbol.trim().toUpperCase();
   const normalizedOrderId = orderId.trim();
-  const canQuery = useMemo(
-    () => /^[A-Z0-9]{4,20}$/.test(normalizedSymbol) && /^\d+$/.test(normalizedOrderId),
-    [normalizedOrderId, normalizedSymbol]
-  );
+  const hasSymbolFilter = normalizedSymbol.length > 0;
+  const isValidSymbol = !hasSymbolFilter || /^[A-Z0-9]{4,20}$/.test(normalizedSymbol);
+  const canQuerySingleOrder = isValidSymbol && /^\d+$/.test(normalizedOrderId) && normalizedSymbol.length > 0;
 
-  const fetchOrder = useCallback(async () => {
-    if (!canQuery) {
-      setError('Введите корректные symbol и orderId');
+  const fetchOpenOrders = useCallback(async () => {
+    if (!isValidSymbol) {
+      setOpenOrdersError('Некорректный symbol для фильтра');
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    setLoadingOpenOrders(true);
+    setOpenOrdersError(null);
+
+    try {
+      const params = new URLSearchParams();
+      if (hasSymbolFilter) {
+        params.set('symbol', normalizedSymbol);
+      }
+
+      const suffix = params.toString();
+      const response = await fetch(
+        suffix
+          ? `/api/financial/mexc-open-orders?${suffix}`
+          : '/api/financial/mexc-open-orders'
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(typeof data?.error === 'string' ? data.error : `HTTP ${response.status}`);
+      }
+
+      setOpenOrders(Array.isArray(data) ? (data as MexcSpotOrder[]) : []);
+      setLastUpdatedAt(Date.now());
+    } catch (err) {
+      setOpenOrdersError(err instanceof Error ? err.message : 'Не удалось получить открытые ордера');
+    } finally {
+      setLoadingOpenOrders(false);
+    }
+  }, [hasSymbolFilter, isValidSymbol, normalizedSymbol]);
+
+  const fetchOrder = useCallback(async () => {
+    if (!canQuerySingleOrder) {
+      setOrderError('Для точечного поиска укажи symbol и numeric orderId');
+      return;
+    }
+
+    setLoadingOrder(true);
+    setOrderError(null);
 
     try {
       const params = new URLSearchParams({
@@ -99,33 +141,61 @@ export default function MexcSpotOrderPanel() {
       setOrder(data as MexcSpotOrder);
       setLastUpdatedAt(Date.now());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось получить данные ордера');
+      setOrderError(err instanceof Error ? err.message : 'Не удалось получить данные ордера');
     } finally {
-      setLoading(false);
+      setLoadingOrder(false);
     }
-  }, [canQuery, normalizedOrderId, normalizedSymbol]);
+  }, [canQuerySingleOrder, normalizedOrderId, normalizedSymbol]);
+
+  const refreshAll = useCallback(async () => {
+    await fetchOpenOrders();
+    if (canQuerySingleOrder) {
+      await fetchOrder();
+    }
+  }, [canQuerySingleOrder, fetchOpenOrders, fetchOrder]);
 
   useEffect(() => {
-    if (!autoRefresh || !canQuery) {
+    refreshAll();
+  }, [refreshAll]);
+
+  useEffect(() => {
+    if (!autoRefresh) {
       return;
     }
 
-    fetchOrder();
-    const intervalId = window.setInterval(fetchOrder, REFRESH_INTERVAL_MS);
+    const intervalId = window.setInterval(refreshAll, REFRESH_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
-  }, [autoRefresh, canQuery, fetchOrder]);
+  }, [autoRefresh, refreshAll]);
 
-  const statusClass = order ? STATUS_STYLES[order.status] ?? 'bg-gray-600 text-white' : 'bg-gray-600 text-white';
+  const isAnyLoading = loadingOrder || loadingOpenOrders;
   const fillPercent = order && order.origQty > 0 ? Math.min((order.executedQty / order.origQty) * 100, 100) : 0;
   const remainingQty = order ? Math.max(order.origQty - order.executedQty, 0) : 0;
   const isOpen = order ? OPEN_STATUSES.has(order.status) : false;
+
+  const summaryText = useMemo(() => {
+    if (loadingOpenOrders) {
+      return 'Обновляю список активных ордеров...';
+    }
+
+    if (openOrdersError) {
+      return openOrdersError;
+    }
+
+    if (openOrders.length === 0) {
+      return hasSymbolFilter
+        ? `По паре ${normalizedSymbol} активных ордеров нет`
+        : 'Активных ордеров сейчас нет';
+    }
+
+    return `Активных ордеров: ${openOrders.length}`;
+  }, [hasSymbolFilter, loadingOpenOrders, normalizedSymbol, openOrders.length, openOrdersError]);
 
   return (
     <div className="bg-gray-800 rounded-xl p-5 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
           <span className="text-xl">📌</span>
-          MEXC Spot ордер
+          MEXC Spot ордера
         </h2>
         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-cyan-600 text-white">
           Private API
@@ -135,7 +205,7 @@ export default function MexcSpotOrderPanel() {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          fetchOrder();
+          refreshAll();
         }}
         className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2"
       >
@@ -143,22 +213,22 @@ export default function MexcSpotOrderPanel() {
           type="text"
           value={symbol}
           onChange={(event) => setSymbol(event.target.value.toUpperCase())}
-          placeholder="Пара (например, XMRUSDT)"
+          placeholder="Фильтр пары (пример: XMRUSDT, можно пусто)"
           className="px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:border-cyan-500"
         />
         <input
           type="text"
           value={orderId}
           onChange={(event) => setOrderId(event.target.value.replace(/[^\d]/g, ''))}
-          placeholder="Order ID"
+          placeholder="Order ID (необязательно)"
           className="px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:border-cyan-500"
         />
         <button
           type="submit"
-          disabled={loading}
+          disabled={isAnyLoading}
           className="px-4 py-2 rounded-lg bg-cyan-600 text-white font-semibold hover:bg-cyan-500 disabled:opacity-50"
         >
-          {loading ? 'Загрузка...' : 'Обновить'}
+          {isAnyLoading ? 'Загрузка...' : 'Обновить'}
         </button>
       </form>
 
@@ -174,26 +244,85 @@ export default function MexcSpotOrderPanel() {
         </label>
 
         <button
-          onClick={fetchOrder}
-          disabled={loading || !canQuery}
+          onClick={refreshAll}
+          disabled={isAnyLoading}
           className="p-2 rounded-lg bg-gray-700 text-gray-200 hover:bg-gray-600 disabled:opacity-50"
           title="Обновить сейчас"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${isAnyLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {error && (
+      <div className="bg-gray-900/70 border border-gray-700 rounded-lg p-3">
+        <p className="text-sm text-gray-200">{summaryText}</p>
+      </div>
+
+      {openOrders.length > 0 && (
+        <div className="bg-gray-900/70 border border-gray-700 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-800/80 text-gray-300">
+                <tr>
+                  <th className="text-left px-3 py-2">Пара</th>
+                  <th className="text-left px-3 py-2">Сторона</th>
+                  <th className="text-left px-3 py-2">Цена</th>
+                  <th className="text-left px-3 py-2">Исполнено</th>
+                  <th className="text-left px-3 py-2">Статус</th>
+                  <th className="text-left px-3 py-2">Обновлен</th>
+                  <th className="text-left px-3 py-2">Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                {openOrders.map((item) => {
+                  const itemFill =
+                    item.origQty > 0 ? Math.min((item.executedQty / item.origQty) * 100, 100) : 0;
+
+                  return (
+                    <tr key={`${item.symbol}_${item.orderId}`} className="border-t border-gray-800 text-gray-200">
+                      <td className="px-3 py-2 font-semibold">{item.symbol}</td>
+                      <td className="px-3 py-2">{item.side}</td>
+                      <td className="px-3 py-2">{formatNumber(item.price, 8)}</td>
+                      <td className="px-3 py-2">
+                        {formatNumber(item.executedQty)} / {formatNumber(item.origQty)} ({itemFill.toFixed(1)}%)
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${getStatusClass(item.status)}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">{formatDateTime(item.updateTime)}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          onClick={() => {
+                            setSymbol(item.symbol);
+                            setOrderId(item.orderId);
+                            setOrder(item);
+                          }}
+                          className="px-2.5 py-1 rounded bg-cyan-600 text-white hover:bg-cyan-500 text-xs font-semibold"
+                        >
+                          Выбрать
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {orderError && (
         <div className="bg-red-900/40 border border-red-500 rounded-lg p-3">
-          <p className="text-red-300 text-sm">{error}</p>
+          <p className="text-red-300 text-sm">{orderError}</p>
         </div>
       )}
 
       {order && (
         <div className="bg-gray-900/70 border border-gray-700 rounded-lg p-4 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-gray-400">Статус:</span>
-            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${statusClass}`}>
+            <span className="text-sm text-gray-400">Текущий выбранный ордер:</span>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${getStatusClass(order.status)}`}>
               {order.status}
             </span>
             <span className="text-xs text-gray-400">
@@ -216,7 +345,7 @@ export default function MexcSpotOrderPanel() {
             </div>
             <div>
               <p className="text-gray-400">Цена</p>
-              <p className="text-white font-semibold">{formatNumber(order.price, 6)}</p>
+              <p className="text-white font-semibold">{formatNumber(order.price, 8)}</p>
             </div>
           </div>
 
@@ -234,13 +363,13 @@ export default function MexcSpotOrderPanel() {
               />
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              Осталось: {formatNumber(remainingQty)} | Потрачено: {formatNumber(order.cummulativeQuoteQty, 6)}
+              Осталось: {formatNumber(remainingQty)} | Потрачено: {formatNumber(order.cummulativeQuoteQty, 8)}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-400">
             <p>Создан: {formatDateTime(order.time)}</p>
-            <p>Обновлён: {formatDateTime(order.updateTime)}</p>
+            <p>Обновлен: {formatDateTime(order.updateTime)}</p>
             <p className="md:col-span-2">Order ID: {order.orderId}</p>
             <p className="md:col-span-2">Client ID: {order.clientOrderId}</p>
           </div>
@@ -248,7 +377,7 @@ export default function MexcSpotOrderPanel() {
       )}
 
       <p className="text-xs text-gray-500">
-        Последнее обновление: {lastUpdatedAt ? formatDateTime(lastUpdatedAt) : 'ещё не выполнялось'}
+        Последнее обновление: {lastUpdatedAt ? formatDateTime(lastUpdatedAt) : 'еще не выполнялось'}
       </p>
     </div>
   );
