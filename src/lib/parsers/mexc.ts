@@ -156,10 +156,14 @@ interface MexcOrderResponse {
   symbol?: string;
   orderId?: number | string;
   clientOrderId?: string;
+  origClientOrderId?: string;
   price?: string;
   origQty?: string;
+  quantity?: string;
   executedQty?: string;
+  dealQuantity?: string;
   cummulativeQuoteQty?: string;
+  cumulativeQuoteQty?: string;
   status?: string;
   type?: string;
   side?: string;
@@ -167,6 +171,7 @@ interface MexcOrderResponse {
   isWorking?: boolean;
   time?: number | string;
   updateTime?: number | string;
+  createTime?: number | string;
 }
 
 function toFiniteNumber(value: string | number | undefined): number {
@@ -187,25 +192,25 @@ function normalizeSymbol(value: string): string {
   return value.trim().toUpperCase();
 }
 
-function mapMexcOrder(order: MexcOrderResponse): MexcSpotOrder {
-  if (!order.symbol || order.orderId === undefined || !order.clientOrderId) {
+function mapMexcOrder(order: MexcOrderResponse, symbolFallback?: string): MexcSpotOrder {
+  if (order.orderId === undefined) {
     throw new Error('Unexpected MEXC order response format');
   }
 
   return {
-    symbol: order.symbol,
+    symbol: order.symbol ?? symbolFallback ?? 'UNKNOWN',
     orderId: String(order.orderId),
-    clientOrderId: order.clientOrderId,
+    clientOrderId: order.clientOrderId ?? order.origClientOrderId ?? '-',
     price: toFiniteNumber(order.price),
-    origQty: toFiniteNumber(order.origQty),
-    executedQty: toFiniteNumber(order.executedQty),
-    cummulativeQuoteQty: toFiniteNumber(order.cummulativeQuoteQty),
+    origQty: toFiniteNumber(order.origQty ?? order.quantity),
+    executedQty: toFiniteNumber(order.executedQty ?? order.dealQuantity),
+    cummulativeQuoteQty: toFiniteNumber(order.cummulativeQuoteQty ?? order.cumulativeQuoteQty),
     status: order.status ?? 'UNKNOWN',
     type: order.type ?? 'UNKNOWN',
     side: order.side ?? 'UNKNOWN',
     timeInForce: order.timeInForce ?? 'UNKNOWN',
     isWorking: Boolean(order.isWorking),
-    time: toTimestamp(order.time),
+    time: toTimestamp(order.time ?? order.createTime),
     updateTime: toTimestamp(order.updateTime)
   };
 }
@@ -256,7 +261,7 @@ export async function getMexcSpotOrder({
   }
 
   const order: MexcOrderResponse = await response.json();
-  return mapMexcOrder(order);
+  return mapMexcOrder(order, normalizedSymbol);
 }
 
 /**
@@ -305,6 +310,6 @@ export async function getMexcOpenOrders({
   }
 
   return orders
-    .map(mapMexcOrder)
+    .map((order) => mapMexcOrder(order, normalizedSymbol || undefined))
     .sort((a, b) => b.updateTime - a.updateTime);
 }
