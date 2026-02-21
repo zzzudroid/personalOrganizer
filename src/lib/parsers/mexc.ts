@@ -152,26 +152,44 @@ interface MexcOpenOrdersQueryParams {
   recvWindow?: number;
 }
 
+interface MexcApiErrorResponse {
+  code?: number;
+  msg?: string;
+}
+
 interface MexcOrderResponse {
   symbol?: string;
   orderId?: number | string;
+  id?: number | string;
+  order_id?: number | string;
+  orderNo?: number | string;
   clientOrderId?: string;
   origClientOrderId?: string;
+  client_order_id?: string;
   price?: string;
   origQty?: string;
   quantity?: string;
+  qty?: string;
   executedQty?: string;
   dealQuantity?: string;
+  dealQty?: string;
+  filledQty?: string;
   cummulativeQuoteQty?: string;
   cumulativeQuoteQty?: string;
+  dealAmount?: string;
   status?: string;
+  state?: string;
   type?: string;
+  orderType?: string;
   side?: string;
+  tradeType?: string;
   timeInForce?: string;
+  tif?: string;
   isWorking?: boolean;
   time?: number | string;
   updateTime?: number | string;
   createTime?: number | string;
+  [key: string]: unknown;
 }
 
 function toFiniteNumber(value: string | number | undefined): number {
@@ -192,26 +210,115 @@ function normalizeSymbol(value: string): string {
   return value.trim().toUpperCase();
 }
 
-function mapMexcOrder(order: MexcOrderResponse, symbolFallback?: string): MexcSpotOrder {
-  if (order.orderId === undefined) {
-    throw new Error('Unexpected MEXC order response format');
+function unwrapPayload<T>(payload: T | { data?: T }): T {
+  if (payload && typeof payload === 'object' && 'data' in (payload as Record<string, unknown>)) {
+    const data = (payload as { data?: T }).data;
+    if (data !== undefined) {
+      return data;
+    }
+  }
+
+  return payload as T;
+}
+
+async function getMexcServerTimestamp(): Promise<number> {
+  const response = await fetch('https://api.mexc.com/api/v3/time', { cache: 'no-store' });
+  if (!response.ok) {
+    return Date.now();
+  }
+
+  const payload = (await response.json()) as { serverTime?: number };
+  return typeof payload.serverTime === 'number' ? payload.serverTime : Date.now();
+}
+
+function isRecvWindowError(errorBody: MexcApiErrorResponse | null): boolean {
+  const msg = errorBody?.msg?.toLowerCase() ?? '';
+  return msg.includes('outside of the recvwindow') || msg.includes('timestamp');
+}
+
+async function signedMexcRequest<T>(
+  path: string,
+  apiKey: string,
+  apiSecret: string,
+  queryParams: Record<string, string>,
+  recvWindow: number
+): Promise<T> {
+  const execute = async (timestamp: number): Promise<{ ok: true; data: T } | { ok: false; error: MexcApiErrorResponse | null; status: number }> => {
+    const params = new URLSearchParams({
+      ...queryParams,
+      recvWindow: String(recvWindow),
+      timestamp: String(timestamp)
+    });
+    params.set('signature', signQuery(params, apiSecret));
+
+    const url = `https://api.mexc.com/api/v3/${path}?${params.toString()}`;
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'X-MEXC-APIKEY': apiKey
+      }
+    });
+
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as MexcApiErrorResponse | null;
+      return { ok: false, error: errorBody, status: response.status };
+    }
+
+    const data = (await response.json()) as T;
+    return { ok: true, data };
+  };
+
+  const firstTry = await execute(Date.now());
+  if (firstTry.ok) {
+    return firstTry.data;
+  }
+
+  if (isRecvWindowError(firstTry.error)) {
+    const serverTimestamp = await getMexcServerTimestamp();
+    const secondTry = await execute(serverTimestamp);
+    if (secondTry.ok) {
+      return secondTry.data;
+    }
+
+    const secondMsg = typeof secondTry.error?.msg === 'string' ? secondTry.error.msg : null;
+    throw new Error(secondMsg ?? `MEXC API request failed with status ${secondTry.status}`);
+  }
+
+  const firstMsg = typeof firstTry.error?.msg === 'string' ? firstTry.error.msg : null;
+  throw new Error(firstMsg ?? `MEXC API request failed with status ${firstTry.status}`);
+}
+
+function readOrderId(order: MexcOrderResponse): string {
+  const value = order.orderId ?? order.id ?? order.order_id ?? order.orderNo;
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  const id = String(value).trim();
+  return id;
+}
+
+function mapMexcOrder(order: MexcOrderResponse, symbolFallback?: string): MexcSpotOrder | null {
+  const orderId = readOrderId(order);
+  if (!orderId) {
+    return null;
   }
 
   return {
     symbol: order.symbol ?? symbolFallback ?? 'UNKNOWN',
-    orderId: String(order.orderId),
-    clientOrderId: order.clientOrderId ?? order.origClientOrderId ?? '-',
+    orderId,
+    clientOrderId: order.clientOrderId ?? order.origClientOrderId ?? order.client_order_id ?? '-',
     price: toFiniteNumber(order.price),
-    origQty: toFiniteNumber(order.origQty ?? order.quantity),
-    executedQty: toFiniteNumber(order.executedQty ?? order.dealQuantity),
-    cummulativeQuoteQty: toFiniteNumber(order.cummulativeQuoteQty ?? order.cumulativeQuoteQty),
-    status: order.status ?? 'UNKNOWN',
-    type: order.type ?? 'UNKNOWN',
-    side: order.side ?? 'UNKNOWN',
-    timeInForce: order.timeInForce ?? 'UNKNOWN',
+    origQty: toFiniteNumber(order.origQty ?? order.quantity ?? order.qty),
+    executedQty: toFiniteNumber(order.executedQty ?? order.dealQuantity ?? order.dealQty ?? order.filledQty),
+    cummulativeQuoteQty: toFiniteNumber(order.cummulativeQuoteQty ?? order.cumulativeQuoteQty ?? order.dealAmount),
+    status: order.status ?? order.state ?? 'UNKNOWN',
+    type: order.type ?? order.orderType ?? 'UNKNOWN',
+    side: order.side ?? order.tradeType ?? 'UNKNOWN',
+    timeInForce: order.timeInForce ?? order.tif ?? 'UNKNOWN',
     isWorking: Boolean(order.isWorking),
     time: toTimestamp(order.time ?? order.createTime),
-    updateTime: toTimestamp(order.updateTime)
+    updateTime: toTimestamp(order.updateTime ?? order.time ?? order.createTime)
   };
 }
 
@@ -224,7 +331,7 @@ export async function getMexcSpotOrder({
   apiSecret,
   symbol,
   orderId,
-  recvWindow = 5000
+  recvWindow = 60000
 }: MexcSpotOrderQueryParams): Promise<MexcSpotOrder> {
   const normalizedSymbol = normalizeSymbol(symbol);
   const normalizedOrderId = orderId.trim();
@@ -237,31 +344,30 @@ export async function getMexcSpotOrder({
     throw new Error('symbol and orderId are required');
   }
 
-  const params = new URLSearchParams({
-    symbol: normalizedSymbol,
-    orderId: normalizedOrderId,
-    recvWindow: String(recvWindow),
-    timestamp: String(Date.now())
-  });
+  const payload = await signedMexcRequest<MexcOrderResponse | { data?: MexcOrderResponse }>(
+    'order',
+    apiKey,
+    apiSecret,
+    /^\d+$/.test(normalizedOrderId)
+      ? {
+          symbol: normalizedSymbol,
+          orderId: normalizedOrderId
+        }
+      : {
+          symbol: normalizedSymbol,
+          origClientOrderId: normalizedOrderId
+        },
+    recvWindow
+  );
+  const order = unwrapPayload<MexcOrderResponse>(payload);
+  const mappedOrder = mapMexcOrder(order, normalizedSymbol);
 
-  params.set('signature', signQuery(params, apiSecret));
-
-  const url = `https://api.mexc.com/api/v3/order?${params.toString()}`;
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      'X-MEXC-APIKEY': apiKey
-    }
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    const mexcMessage = typeof errorBody?.msg === 'string' ? errorBody.msg : null;
-    throw new Error(mexcMessage ?? `MEXC API request failed with status ${response.status}`);
+  if (!mappedOrder) {
+    const keys = order && typeof order === 'object' ? Object.keys(order).join(', ') : '';
+    throw new Error(`Unexpected MEXC order response format${keys ? ` (keys: ${keys})` : ''}`);
   }
 
-  const order: MexcOrderResponse = await response.json();
-  return mapMexcOrder(order, normalizedSymbol);
+  return mappedOrder;
 }
 
 /**
@@ -272,44 +378,36 @@ export async function getMexcOpenOrders({
   apiKey,
   apiSecret,
   symbol,
-  recvWindow = 5000
+  recvWindow = 60000
 }: MexcOpenOrdersQueryParams): Promise<MexcSpotOrder[]> {
   if (!apiKey || !apiSecret) {
     throw new Error('MEXC API key/secret is not configured');
   }
 
   const normalizedSymbol = symbol ? normalizeSymbol(symbol) : '';
-  const params = new URLSearchParams({
-    recvWindow: String(recvWindow),
-    timestamp: String(Date.now())
-  });
+  const payload = await signedMexcRequest<MexcOrderResponse[] | MexcOrderResponse | { data?: MexcOrderResponse[] | MexcOrderResponse }>(
+    'openOrders',
+    apiKey,
+    apiSecret,
+    normalizedSymbol ? { symbol: normalizedSymbol } : {},
+    recvWindow
+  );
+  const orders = unwrapPayload<MexcOrderResponse[] | MexcOrderResponse>(payload);
 
-  if (normalizedSymbol) {
-    params.set('symbol', normalizedSymbol);
-  }
-
-  params.set('signature', signQuery(params, apiSecret));
-
-  const url = `https://api.mexc.com/api/v3/openOrders?${params.toString()}`;
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      'X-MEXC-APIKEY': apiKey
-    }
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    const mexcMessage = typeof errorBody?.msg === 'string' ? errorBody.msg : null;
-    throw new Error(mexcMessage ?? `MEXC API request failed with status ${response.status}`);
-  }
-
-  const orders = (await response.json()) as MexcOrderResponse[];
-  if (!Array.isArray(orders)) {
+  const orderList = Array.isArray(orders) ? orders : [];
+  if (!Array.isArray(orderList)) {
     throw new Error('Unexpected MEXC open orders response format');
   }
 
-  return orders
+  const mappedOrders = orderList
     .map((order) => mapMexcOrder(order, normalizedSymbol || undefined))
-    .sort((a, b) => b.updateTime - a.updateTime);
+    .filter((order): order is MexcSpotOrder => order !== null);
+
+  if (mappedOrders.length === 0 && orderList.length > 0) {
+    const first = orderList[0];
+    const keys = first && typeof first === 'object' ? Object.keys(first).join(', ') : '';
+    throw new Error(`Unexpected MEXC order response format${keys ? ` (keys: ${keys})` : ''}`);
+  }
+
+  return mappedOrders.sort((a, b) => b.updateTime - a.updateTime);
 }

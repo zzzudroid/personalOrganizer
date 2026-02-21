@@ -44,6 +44,10 @@ function getStatusClass(status: string): string {
   return STATUS_STYLES[status] ?? 'bg-gray-600 text-white';
 }
 
+function buildOrderKey(symbol: string, orderId: string): string {
+  return `${symbol}::${orderId}`;
+}
+
 export default function MexcSpotOrderPanel() {
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
   const [orderId, setOrderId] = useState('');
@@ -55,6 +59,7 @@ export default function MexcSpotOrderPanel() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [order, setOrder] = useState<MexcSpotOrder | null>(null);
   const [openOrders, setOpenOrders] = useState<MexcSpotOrder[]>([]);
+  const [selectedOrderKey, setSelectedOrderKey] = useState('');
 
   useEffect(() => {
     const savedSymbol = localStorage.getItem('mexc_spot_symbol');
@@ -108,18 +113,31 @@ export default function MexcSpotOrderPanel() {
         throw new Error(typeof data?.error === 'string' ? data.error : `HTTP ${response.status}`);
       }
 
-      setOpenOrders(Array.isArray(data) ? (data as MexcSpotOrder[]) : []);
+      const nextOpenOrders = Array.isArray(data) ? (data as MexcSpotOrder[]) : [];
+      setOpenOrders(nextOpenOrders);
+      if (selectedOrderKey) {
+        const selectedFromList = nextOpenOrders.find(
+          (item) => buildOrderKey(item.symbol, item.orderId) === selectedOrderKey
+        );
+        if (selectedFromList) {
+          setOrder(selectedFromList);
+          setOrderError(null);
+        } else {
+          setOrder(null);
+          setOrderError('Выбранный ордер больше не в списке открытых');
+        }
+      }
       setLastUpdatedAt(Date.now());
     } catch (err) {
       setOpenOrdersError(err instanceof Error ? err.message : 'Не удалось получить открытые ордера');
     } finally {
       setLoadingOpenOrders(false);
     }
-  }, [hasSymbolFilter, isValidSymbol, normalizedSymbol]);
+  }, [hasSymbolFilter, isValidSymbol, normalizedSymbol, selectedOrderKey]);
 
   const fetchOrder = useCallback(async () => {
     if (!canQuerySingleOrder) {
-      setOrderError('Для точечного поиска укажи symbol и numeric orderId');
+      setOrderError('Точечный запрос поддерживает numeric orderId, но список открытых ордеров уже доступен выше');
       return;
     }
 
@@ -138,7 +156,9 @@ export default function MexcSpotOrderPanel() {
         throw new Error(typeof data?.error === 'string' ? data.error : `HTTP ${response.status}`);
       }
 
-      setOrder(data as MexcSpotOrder);
+      const nextOrder = data as MexcSpotOrder;
+      setOrder(nextOrder);
+      setSelectedOrderKey(buildOrderKey(nextOrder.symbol, nextOrder.orderId));
       setLastUpdatedAt(Date.now());
     } catch (err) {
       setOrderError(err instanceof Error ? err.message : 'Не удалось получить данные ордера');
@@ -219,7 +239,7 @@ export default function MexcSpotOrderPanel() {
         <input
           type="text"
           value={orderId}
-          onChange={(event) => setOrderId(event.target.value.replace(/[^\d]/g, ''))}
+          onChange={(event) => setOrderId(event.target.value.trim())}
           placeholder="Order ID (необязательно)"
           className="px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:border-cyan-500"
         />
@@ -297,6 +317,7 @@ export default function MexcSpotOrderPanel() {
                             setSymbol(item.symbol);
                             setOrderId(item.orderId);
                             setOrder(item);
+                            setSelectedOrderKey(buildOrderKey(item.symbol, item.orderId));
                           }}
                           className="px-2.5 py-1 rounded bg-cyan-600 text-white hover:bg-cyan-500 text-xs font-semibold"
                         >

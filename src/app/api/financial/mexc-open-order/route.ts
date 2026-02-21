@@ -36,9 +36,9 @@ export async function GET(request: Request) {
     );
   }
 
-  if (!/^\d+$/.test(orderId)) {
+  if (!/^[A-Za-z0-9_-]{2,128}$/.test(orderId)) {
     return NextResponse.json(
-      { error: 'orderId должен содержать только цифры' },
+      { error: 'orderId содержит недопустимые символы' },
       { status: 400 }
     );
   }
