@@ -221,6 +221,85 @@ function unwrapPayload<T>(payload: T | { data?: T }): T {
   return payload as T;
 }
 
+function extractOrderObject(payload: unknown): MexcOrderResponse | null {
+  if (!payload) {
+    return null;
+  }
+
+  if (Array.isArray(payload)) {
+    return (payload[0] ?? null) as MexcOrderResponse | null;
+  }
+
+  if (typeof payload !== 'object') {
+    return null;
+  }
+
+  const obj = payload as Record<string, unknown>;
+  const candidates: unknown[] = [
+    obj.data,
+    obj.order,
+    obj.result,
+    obj.item,
+    obj.record,
+    obj.rows,
+    obj.list,
+    obj.items
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+
+    if (Array.isArray(candidate)) {
+      if (candidate.length > 0 && typeof candidate[0] === 'object') {
+        return candidate[0] as MexcOrderResponse;
+      }
+      continue;
+    }
+
+    if (typeof candidate === 'object') {
+      return candidate as MexcOrderResponse;
+    }
+  }
+
+  return obj as MexcOrderResponse;
+}
+
+function extractOrderList(payload: unknown): MexcOrderResponse[] {
+  if (!payload) {
+    return [];
+  }
+
+  if (Array.isArray(payload)) {
+    return payload as MexcOrderResponse[];
+  }
+
+  if (typeof payload !== 'object') {
+    return [];
+  }
+
+  const obj = payload as Record<string, unknown>;
+  const candidates: unknown[] = [
+    obj.data,
+    obj.orders,
+    obj.result,
+    obj.rows,
+    obj.list,
+    obj.items,
+    obj.records
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate as MexcOrderResponse[];
+    }
+  }
+
+  const single = extractOrderObject(payload);
+  return single ? [single] : [];
+}
+
 async function getMexcServerTimestamp(): Promise<number> {
   const response = await fetch('https://api.mexc.com/api/v3/time', { cache: 'no-store' });
   if (!response.ok) {
@@ -289,7 +368,13 @@ async function signedMexcRequest<T>(
 }
 
 function readOrderId(order: MexcOrderResponse): string {
-  const value = order.orderId ?? order.id ?? order.order_id ?? order.orderNo;
+  const value = order.orderId
+    ?? order.id
+    ?? order.order_id
+    ?? order.orderNo
+    ?? order.clientOrderId
+    ?? order.origClientOrderId
+    ?? order.client_order_id;
   if (value === undefined || value === null) {
     return '';
   }
@@ -359,12 +444,15 @@ export async function getMexcSpotOrder({
         },
     recvWindow
   );
-  const order = unwrapPayload<MexcOrderResponse>(payload);
+  const order = extractOrderObject(unwrapPayload<unknown>(payload));
+  if (!order) {
+    throw new Error('MEXC order payload is empty');
+  }
   const mappedOrder = mapMexcOrder(order, normalizedSymbol);
 
   if (!mappedOrder) {
-    const keys = order && typeof order === 'object' ? Object.keys(order).join(', ') : '';
-    throw new Error(`Unexpected MEXC order response format${keys ? ` (keys: ${keys})` : ''}`);
+    const keys = Object.keys(order).join(', ');
+    throw new Error(`MEXC order payload missing required fields${keys ? ` (keys: ${keys})` : ''}`);
   }
 
   return mappedOrder;
@@ -392,22 +480,11 @@ export async function getMexcOpenOrders({
     normalizedSymbol ? { symbol: normalizedSymbol } : {},
     recvWindow
   );
-  const orders = unwrapPayload<MexcOrderResponse[] | MexcOrderResponse>(payload);
-
-  const orderList = Array.isArray(orders) ? orders : [];
-  if (!Array.isArray(orderList)) {
-    throw new Error('Unexpected MEXC open orders response format');
-  }
+  const orderList = extractOrderList(unwrapPayload<unknown>(payload));
 
   const mappedOrders = orderList
     .map((order) => mapMexcOrder(order, normalizedSymbol || undefined))
     .filter((order): order is MexcSpotOrder => order !== null);
-
-  if (mappedOrders.length === 0 && orderList.length > 0) {
-    const first = orderList[0];
-    const keys = first && typeof first === 'object' ? Object.keys(first).join(', ') : '';
-    throw new Error(`Unexpected MEXC order response format${keys ? ` (keys: ${keys})` : ''}`);
-  }
 
   return mappedOrders.sort((a, b) => b.updateTime - a.updateTime);
 }
